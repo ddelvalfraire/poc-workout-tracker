@@ -1,0 +1,820 @@
+
+══════════════════════════════════════════════════════════════════════════════
+1. CHECK: every definition in publication order (IR checker)
+══════════════════════════════════════════════════════════════════════════════
+  OK      fn lib/load-for
+  OK      fn lib/juggernaut-bump
+  OK      fn lib/apre-adjust
+  OK      fn lib/rp-set-delta
+  OK      fn lib/sfr-score
+  OK      fn lib/deload
+  OK      fn lib/with-tempo
+  OK      fn lib/rp-weekly-target
+  OK      fn lib/sfr-or-neutral
+  OK      fn lib/rep-shape
+  OK      scheme lib/apre-6rm (case b: no program binds it)
+  OK      scheme lib/juggernaut-realization (hard case)
+  OK      scheme lib/531-jokers (stepWhile with self-reads, a count range)
+  OK      program prog/linear-3x5@1
+  OK      scheme lib/linear-gated@1
+  OK      program prog/mixed-units@1
+  OK      scheme lib/linear-gated@1
+  OK      program prog/531-bbb@1
+  OK      scheme lib/531@1
+  OK      scheme lib/bbb@1
+  OK      program prog/gzclp-t1@1
+  OK      scheme lib/gzclp-t1@1
+  OK      program prog/gzclp-t1@2
+  OK      scheme lib/gzclp-t1@2
+  OK      program prog/rp-upper-meso@1
+  OK      scheme lib/rp-slot@1
+  OK      program prog/opt-stabilization@1
+  OK      scheme lib/stab-ladder@1
+  OK      program prog/opt-strength-endurance@1
+  OK      scheme lib/double-progression@1
+  OK      scheme lib/stab-ladder@1
+  OK      program prog/opt-strength-endurance@2
+  OK      scheme lib/double-progression@2
+  OK      scheme lib/stab-ladder@1
+  OK      program prog/opt-loaded@1
+  OK      scheme lib/double-progression@1
+  OK      program prog/opt-loaded@2
+  OK      scheme lib/double-progression@2
+  OK      program prog/opt-power@1
+  OK      scheme lib/double-progression@1
+  OK      scheme lib/fixed-work@1
+  OK      program prog/opt-power@2
+  OK      scheme lib/double-progression@2
+  OK      scheme lib/fixed-work@1
+  OK      program prog/upper-hypertrophy-dc@1
+  OK      scheme lib/rest-pause-dc@1
+  OK      scheme lib/cluster-strength@1
+  OK      program prog/legs-3x@1
+  OK      scheme lib/linear-gated@1
+  OK      scheme lib/double-progression@1
+  OK      program prog/legs-3x@2
+  OK      scheme lib/linear-gated@1
+  OK      scheme lib/double-progression@2
+  OK      program prog/c25k@1
+  OK      scheme lib/c25k@1
+  OK      program prog/hr-tempo-block@1
+  OK      scheme lib/hr-tempo@1
+  OK      scheme lib/easy-run@1
+  OK      program prog/hr-tempo-block@2
+  OK      scheme lib/hr-tempo@2
+  OK      scheme lib/easy-run@1
+  OK      program prog/achilles-isometric@1
+  OK      scheme lib/iso-hold@1
+  OK      program prog/achilles-loading@1
+  OK      scheme lib/pain-gated-loading@1
+  OK      program prog/achilles-loading@2
+  OK      scheme lib/pain-gated-loading@2
+  OK      macro macro/opt-16wk
+  OK      macro macro/opt-16wk
+  OK      macro macro/achilles-return
+  OK      macro macro/achilles-return
+
+══════════════════════════════════════════════════════════════════════════════
+2. BUDGET: an unnamed phrase over 4 operators is refused; naming is the fix
+══════════════════════════════════════════════════════════════════════════════
+  REFUSED inlined increment (orElse, plus, ×, never-below, minus: cost 5)
+          overBudget at on.session.set.tm.to: 5 operators in one phrase (budget 4); name an intermediate quantity: wrap a subterm in named(noun, …) or bind it with a labeled let
+  OK      named increment (lib/juggernaut-bump is a name: cost 2)
+
+  The two calibration cases, with their names removed:
+  REFUSED RP allocation gap: program prog/rp-upper-meso@1
+          overBudget at aggregate.on.weekEnd.body.value: 5 operators in one phrase (budget 4); name an intermediate quantity: wrap a subterm in named(noun, …) or bind it with a labeled let
+  REFUSED rest-pause bump, unnamed (scheme lib/rest-pause-dc)
+          overBudget at on.session.set.load.to: 5 operators in one phrase (budget 4); name an intermediate quantity: wrap a subterm in named(noun, …) or bind it with a labeled let
+
+══════════════════════════════════════════════════════════════════════════════
+3. IR NEGATIVES: the rules over raw JSON (what MCP authoring hits)
+══════════════════════════════════════════════════════════════════════════════
+  The round-2 twins:
+  REFUSED event read in a set target (plan)
+          capabilityEscape at plan.steps.3.target.target.load.v.a: reads 'event', which a live position does not grant
+  REFUSED ramp set reads the LATER top set
+          forwardStepRef at plan.steps.1.target.target.load.v: performed(top) must name an EARLIER step of this session
+  REFUSED aggregate read in a slot set count
+          capabilityEscape at plan.steps.0.count.n: reads 'agg', which a plan position does not grant
+  REFUSED 5/3/1 session handler writes tm (writableBy: cycleEnd, owner)
+          notWritableHere at on.session.set.tm: tm is writable by cycleEnd, owner, not session
+  REFUSED kg/rep + reps in a definition body
+          unitMismatch at body.b: expected massPerRep, got reps
+  REFUSED allocate bound given as a term
+          boundNotLiteral at aggregate.on.weekEnd.body.value.step.body.body.max: a loop bound must be a literal positive integer
+
+  Metrics and facts:
+  REFUSED a load on a timed hold (metric not logged by its exercise)
+          metricNotLogged at plan.steps.0.target.target.load: load is not logged for a timed exercise (it logs duration, rom)
+  REFUSED a heart-rate target without the avgHr fact declared
+          undeclaredFact at plan.steps.0.target.target.hr: a heart rate target is judged from avgHr, which the definition does not declare
+  REFUSED a heart rate targeted as one exact number
+          shapeNotAllowed at plan.steps.0.target.target.hr: heart rate cannot be targeted as exact (allowed: range, atMost, atLeast, open)
+  REFUSED borg is not RIR: a Borg rating as an effort target
+          unitMismatch at plan.steps.0.target.target.effort.v: expected effort, got borg rating
+  REFUSED borg is not RIR: a Borg rating compared with reps in reserve
+          notComparable at on.session.c.a.body: cannot compare borg rating < effort
+  REFUSED capEffort on a run (it logs no effort)
+          metricNotLogged at plan: effort is not logged for a cardio exercise (it logs duration, distance, pace, hr)
+  REFUSED a slot-keyed fact (joint pain) read by a muscle
+          unitMismatch at aggregate.on.weekEnd.body.value.step.body.body.score.args.joint.key: expected slot, got muscle
+  REFUSED a comparison on a fact that may be unknown
+          absenceUnhandled at policies.3.when.a: optional readiness rating compared; say what happens when it is unknown with known/orElse
+
+  Calendar reads and frequency:
+  REFUSED a calendar read in a definition body (a fn is a pure function)
+          capabilityEscape at body.arg: reads 'cal', which a fnBody position does not grant
+  REFUSED a calendar read in scheme init (no stamped day exists yet)
+          capabilityEscape at state.week.init: reads 'cal', which a init position does not grant
+  REFUSED a 90-day calendar window
+          windowTooLong at plan.steps.0.count.n.q.days: a calendar window is at most 56 days, got 90
+  REFUSED four hard runs a week, two days apart
+          infeasibleFrequency at frequency: frequency 0 with 1 is infeasible: 4 sessions every 7 days cannot stay 2 days apart (4 × 2 > 7)
+  REFUSED legs three times a week, but at most two workouts in any 7 days
+          infeasibleFrequency at frequency: frequency 0 with 2 is infeasible: 3 sessions every 7 days cannot fit 2 in any 7 days
+  REFUSED a periodClosed handler that commits (time alone never commits)
+          timeCommit at on.periodClosed.set.done: a calendar-caused handler may only propose or keep: time alone never commits (L13), and done would commit
+
+  Structure: groups, muscles, policies, phases, publication:
+  REFUSED a circuit member with its own rest
+          restOwnedByGroup at days.A.0.slots: pushStab prescribes its own rest inside a circuit; the group owns rest between members and rounds
+          restOwnedByGroup at days.A.0.slots: squatStab prescribes its own rest inside a circuit; the group owns rest between members and rounds
+  REFUSED an EMOM member with a variable set count
+          emomNeedsFixedCount at days.A.0.slots: burpee has a variable set count; an EMOM takes one set per member per minute, so its count must be fixed (or declare the group death-by)
+  OK      the same EMOM declared death-by (bounded by its rounds)
+  REFUSED a slot with no primary muscle (the EC-218 shape)
+          primaryMuscle at slots.pass.meta.muscles: pass has 0 primary muscles; exactly one (contribution 1) is required, or allocation never reaches it
+  REFUSED a deload policy missing an argument and mistyping another
+          missingArg at policies.0.plan.args: lib/deload needs rir
+          unitMismatch at policies.0.plan.args.load: expected one, got effort
+  REFUSED an import naming an export the predecessor does not publish
+          importMismatch at imports.squatStart: import squatStart: prog/linear-3x5 exports no benchLoad
+  REFUSED peakOn under slide drift
+          anchoredRequired at drift: a peakOn macro needs anchored drift: the meet does not move when training slips
+  REFUSED a bounded phase with min 7 > max 6
+          boundsInverted at phases.0.length: Stabilization endurance: min 7 weeks exceeds max 6
+  REFUSED an open phase that is not last
+          openNotLast at phases.0.length: Power: an open phase never ends, so it may only be last
+  REFUSED a fixed phase over a cycling calendar
+          fixedNeedsOnce at phases.0.length: Pain modulation: a fixed phase needs a once calendar to have a length
+  REFUSED a definition that calls itself
+          futureRef at body: lib/juggernaut-bump@1 is not published before lib/juggernaut-bump: a definition may call only earlier publications (no recursion)
+  REFUSED mutual recursion: ping (published first) calls pong
+          futureRef at body: demo/pong@1 is not published before demo/ping: a definition may call only earlier publications (no recursion)
+  REFUSED mutual recursion: pong calls ping (published before it)
+          exampleFailed at examples.0: example 0 cannot be evaluated: demo/pong@1 is not published before its caller (L1: no recursion)
+  REFUSED asReps outside a library body
+          scopedFormer at plan.steps.0.target.target.reps.v: asReps (reps in reserve counted as reps) is legal only inside a library definition: the e1RM arithmetic
+  REFUSED GZCLP plan missing its declared stage “retest”
+          nonExhaustive at plan: match on gzT1 misses retest
+          unknownName at on.session.cases.retest.a.a: the event has no step test
+  REFUSED division (not a former in v1)
+          unknownName at body: no arithmetic operator /: division is not a former (use ratio)
+
+  Verdicts and outcomes (S1, S2):
+  REFUSED the two-way silence punisher: if verdict == hit … otherwise count a miss
+          notComparable at on.session.c: a verdict is matched with all three arms (hit, missed, unknown), never compared: a two-way test would decide silence by accident
+  REFUSED a verdict match with no unknown arm
+          nonExhaustive at on.session: match on verdict misses unknown
+  REFUSED the v2 two-valued hitAll read
+          unknownName at on.session.c: no event read hitAll (a session is judged by the three-valued verdict)
+  REFUSED both(commit tm, commit tm = 50 kg): the v2 outcome pair
+          unknownName at on.session: no former both: a handler outcome is one patch
+  REFUSED iterate (cut: fold over range covers it)
+          unknownName at on.session.set.tm.to: no former iterate: iterate is fold over range
+  (A patch is a record: `{ tm: …, tm: … }` cannot be written, so one handler never writes a field twice.)
+
+  Clock sorts (S5):
+  REFUSED load = 100 kg + 0.25 kg per day × the days since you started
+          clockRate at plan.steps.0.target.target.load.v.b.a: a rate of kg per d converts a clock into a quantity; progress follows training, never the passing of days or weeks
+  REFUSED the C25K rung indexed by days × (1/7 week per day)
+          clockRate at plan.i.b: a rate of wk per d converts a clock into a quantity; progress follows training, never the passing of days or weeks
+  REFUSED the C25K rung indexed by how many workouts you did in the last 28 days
+          clockMix at plan.i: a calendar-derived value cannot index a list: positions in a progression follow the progress clock
+  REFUSED sessions in the last 28 days > the sessions of this exercise done (calendar vs progress)
+          clockMix at plan.c: this comparison mixes a calendar-clock value with a progress-clock value: the two clocks never meet
+  REFUSED a calendar count committed into state (then read by the plan as a plain count)
+          clockMix at on.session.cases.missed.set.done.to: a calendar-derived one (calendar clock) may only be compared, never stored, targeted or used as an index (it would let the calendar drive progress)
+  REFUSED a calendar count laundered through orElse (an absent count, else the sessions of the last 7 days) and committed into state
+          clockMix at on.session.cases.missed.set.done.to: a calendar-derived one (calendar clock) may only be compared, never stored, targeted or used as an index (it would let the calendar drive progress)
+
+  Logging (S5):
+  REFUSED swapExercise(squat 3×5 at the working weight → plank)
+          loggingMismatch at plan.arg: swapping to a timed exercise would target reps, load, which it does not log
+  REFUSED reshape a plank session with a 20 kg load
+          metricNotLogged at plan.arg: load is not logged for a timed exercise (it logs duration, rom)
+  REFUSED scaleMetric(pace, 90%) on a squat session
+          metricNotLogged at plan: pace is not logged for a weight_reps exercise (it logs reps, load, effort)
+  REFUSED a load on a ladder whose rungs log bodyweight and loaded (the v2 IR accepted it)
+          metricNotLogged at plan.steps.0.target.target.load: load is not logged for a bodyweight_reps or weight_reps exercise (it logs reps, effort)
+  REFUSED an exercise id the registry does not know
+          unknownName at plan.exercise: no exercise wger:nope in the registry
+
+  Tables, lets, allocation (S4, S7):
+  REFUSED a soreness table missing level 3
+          nonExhaustive at body: table on soreness rating misses 3
+  REFUSED APRE thresholds out of order (up to 4, then up to 2)
+          thresholdOrder at body.rows.1.when: row 1 is not above the row before it, so it could never apply: thresholds ascend strictly
+  REFUSED APRE with a dead row (a second “up to 2 reps”)
+          thresholdOrder at body.rows.1.when: row 1 is not above the row before it, so it could never apply: thresholds ascend strictly
+  REFUSED a threshold given as a term
+          boundNotLiteral at body.rows.0.when: a threshold is a literal quantity
+  REFUSED a threshold table with a clock overflow
+          tableShape at body: table on reps: only a table on the progress clock has an overflow
+  REFUSED a let with no label
+          unlabeledLet at aggregate.on.weekEnd: a let needs a label: it is a name boundary, and the label is what prose calls the value
+  REFUSED allocate 12 sets with a bound of 8
+          nExceedsMax at aggregate.on.weekEnd.body.value.step.body.body.n: allocate hands out 12 units but its bound is 8: the rest could never be placed
+  REFUSED a weekly read filtered to a misspelt week role
+          unknownName at aggregate.on.weekEnd.body.value.step.body.a.q.roles.0: no week role delaod
+  REFUSED RP's filtered weekly read used without handling its absence
+          absenceUnhandled at aggregate.on.weekEnd.body.value.step.body.n.e.b.b: optional sets in arithmetic; handle absence with known/orElse
+
+  Policies and kinds (S3, S6, S9):
+  REFUSED 5/3/1 squat + BBB under a program that ALSO deloads deload weeks
+          roleDoubleEncoding at slots.squat: squat's plan already branches on deload weeks, and the program transforms deload weeks too: the two would stack
+          roleDoubleEncoding at slots.squatBbb: squatBbb's plan already branches on deload weeks, and the program transforms deload weeks too: the two would stack
+  REFUSED the cut law on Couch to 5K (no load field anywhere)
+          noSuchKind at policies.0.outcome.demote.kinds: no state field of this program is a load field, so this rule could never apply
+  REFUSED the allocation default listed before the deload-week rule
+          policyOrder at policies.1: a role policy after a allocation one: the order is role sugar, the allocation default, then declared policies
+  OK      a mass field labelled kind 'flag' in JSON: the label is ignored, its kind is load, the cut law reaches it
+
+  The ingest refusal (runtime, time.ts):
+  REFUSED a session closed with zero logged sets
+          emptySession: w17 is a non-event; no rule fires, no streak moves, no window counts it, no gap resets
+
+══════════════════════════════════════════════════════════════════════════════
+3c. CONVERSE: every IR-accepted JSON construct has a TS twin or is a listed embedding gap
+══════════════════════════════════════════════════════════════════════════════
+  OK      tabulate over an enum (minutes per heart-rate zone). Gap: the embedding has no enum key list; author it as JSON
+  OK      a table keyed by an enum (the week role). TS twin: match (programs.ts lib/gzclp-t1)
+  OK      a threshold table on the calendar day (a condition, not a magnitude). TS twin: this definition
+  Also IR-accepted and JSON-only: the §7 sweet-spot scheme with the `power` metric. Gap: the embedding
+  types metrics from a static interface, so an extension needs that entry too (the drift risk).
+
+══════════════════════════════════════════════════════════════════════════════
+4. ANALYSIS: writeSet against writableBy ("when does the TM change?")
+══════════════════════════════════════════════════════════════════════════════
+  5/3/1 training max (load): declared writable by cycleEnd, owner; written by cycleEnd (propose), cycleEnd (commit)
+  5/3/1 an AMRAP fell short this cycle (plain): declared writable by session, cycleEnd; written by session (commit), cycleEnd (commit)
+  RP weekly set target (volume): declared writable by weekEnd, owner; written by weekEnd (commit); lands as a proposal by policy (D4)
+  RP weekly extra sets (volume): declared writable by weekEnd; written by weekEnd (commit); lands as a proposal by policy (D4)
+
+══════════════════════════════════════════════════════════════════════════════
+5a. PROSE: the computed Juggernaut increment (handler, two zooms, two traces)
+══════════════════════════════════════════════════════════════════════════════
+  intent:    Set training max to whichever is known first: (1) your training max plus 2.5 kg per rep for every rep past 10 reps on the AMRAP set (the reps you logged on “amrap”); (2) your training max.
+  mechanism: Set training max to whichever is known first: (1) your training max plus 2.5 kg per rep for every rep past 10 reps on the AMRAP set (the reps you logged on “amrap”) [= 2.5 kg per rep × ((the reps you logged on “amrap” minus 10 reps), never below 0 reps)]; (2) your training max.
+  trace (AMRAP 13): 7.5 kg: 2.5 kg per rep for every rep past 10 reps on the AMRAP set (13 reps); worked: 7.5 kg (2.5 kg per rep × 3 reps (max(0 reps, 3 reps (13 reps − 10 reps))))
+  trace (AMRAP 8): 0 kg: 2.5 kg per rep for every rep past 10 reps on the AMRAP set (8 reps); worked: 0 kg (2.5 kg per rep × 0 reps (max(0 reps, -2 reps (8 reps − 10 reps))))
+  trace (mixed units, one canonical sum): 102.268 kg (100 kg + 5 lb)
+  RPE is input notation: rpe(8) is stored as {"k":"q","v":2,"unit":"rir","notation":"rpe"} and reads back as RPE 8.
+  D5: user/bump's template says “a small bump on {load}”; a call site renders its mechanism instead: 105% of 100 kg.
+
+══════════════════════════════════════════════════════════════════════════════
+5b. PROSE: RP allocation, the muscle-scope weekEnd handler
+══════════════════════════════════════════════════════════════════════════════
+  intent:    Next week's target is for each muscle, your weekly set target for that muscle (0 sets if unknown) plus the sets earned given your soreness check-in for that muscle and your pump rating for that muscle, capped at (by that muscle: chest → 22 sets; back → 25 sets; any other → 0 sets). The reallocation is starting from your weekly extra sets, for each muscle in turn: hand out the sets still to place [(next week's target for the muscle (0 sets if unknown) minus the sets the muscle is now planned to get in the week just closing, accumulation weeks only), never below 0 sets], one set at a time and at most 8 in all, each to whichever of the exercises that train the muscle directly ranks highest by the stimulus-to-fatigue score from your pump rating for the muscle and your joint-pain rating for that exercise (0 if either is unrated), at most 4 sets extra per exercise. Then:
+- if the reallocation is unknown: Leave everything as is.
+- otherwise: Set weekly set target to next week's target; set weekly extra sets to the reallocation.
+
+══════════════════════════════════════════════════════════════════════════════
+5c. PROSE: the 5/3/1 scheme as bound to the squat slot (its waves are one positional table)
+══════════════════════════════════════════════════════════════════════════════
+  Wendler 5/3/1 on Barbell Back Squat: three waves off a training max that starts at 90% of your estimated max, AMRAP last set, deload week; after each cycle's deload add 10 lb, or propose a reset to 90% of TM if any AMRAP fell short
+    Reads your estimated max (kept on file; ignored once older than 56 days).
+    Starts with training max = 90% of your estimated max for Barbell Back Squat; written by cycleEnd, owner.
+    Starts with “an AMRAP fell short this cycle” = no; written by session, cycleEnd.
+    Plan:
+      - if this is a deload week: Barbell Back Squat: 1 set of 5 reps at 40% of your training max; 1 set of 5 reps at 50% of your training max; 1 set of 5 reps at 60% of your training max.
+      - otherwise: Barbell Back Squat: 1 set of 5/3/5 reps at 65/70/75% of your training max; 1 set of 5/3/3 reps at 75/80/85% of your training max; 1 set of as many reps as possible (at least 5/3/1 reps) at 85/90/95% of your training max (slashed values step by training week, repeating).
+    After each session: Note whether an AMRAP fell short this cycle: an AMRAP fell short this cycle or the reps you logged on “s3” is below the reps prescribed for “s3” (no if unknown).
+    After each cycle (after its deload week):
+      - if an AMRAP fell short this cycle: Reset the note that an AMRAP fell short this cycle; and propose, for your OK: set training max to 90% of your training max.
+      - otherwise: Set training max to your training max plus 10 lb.
+  Boring But Big: 5×10 on Barbell Back Squat at 50% of the squat slot's training max; three sets in deload weeks
+    Plan:
+      - if this is a deload week: Barbell Back Squat: 5 sets of back-off 10 reps at 50% of the squat slot's training max, with 60% of the sets.
+      - otherwise: Barbell Back Squat: 5 sets of back-off 10 reps at 50% of the squat slot's training max.
+  Jokers and First Set Last (pre-tested loop, self-reads, a count range):
+    Plan: Barbell Back Squat: 1 set of 5/3/5 reps at 65/70/75% of your training max; 1 set of 5/3/3 reps at 75/80/85% of your training max; 1 set of as many reps as possible (at least 5/3/1 reps) at 85/90/95% of your training max; while the reps you actually did on “s3” is at least the reps prescribed for “s3” (no if unknown), up to 3 more sets of 1 rep at whichever is known first: (1) 105% of the load you actually did on “joker”; (2) 105% of the load you actually did on “s3”; 3 sets to 5 sets (your choice) of back-off 5 reps at the load prescribed for “s1” (slashed values step by training week, repeating).
+
+══════════════════════════════════════════════════════════════════════════════
+5d. PROSE: the strength and hypertrophy programs at intent zoom
+══════════════════════════════════════════════════════════════════════════════
+
+  2 training days (A and B) holding 4 exercises, over block weeks train, repeating.
+    Block weeks: train, repeating. If you miss a session the plan waits: the next session is still the one you missed. Loads on a 2.5 kg grid.
+    Rotation: Alternate Day A / Day B, 3 sessions per training week.
+    Attendance (from the rotation): Train at least 3 times in each 7-day window (from your start day). If you don't train for 21 days, attendance stops counting until your next session.
+    squat: 3 sets of 5 reps on Barbell Back Squat; add 2.5 kg after every session where all sets hit; after 3 misses in a row, propose dropping to 90% of the weight.
+    bench: 3 sets of 5 reps on Barbell Bench Press; add 1.25 kg after every session where all sets hit; after 3 misses in a row, propose dropping to 90% of the weight.
+    press: 3 sets of 5 reps on Overhead Press; add 1.25 kg after every session where all sets hit; after 3 misses in a row, propose dropping to 90% of the weight.
+    dead: 1 set of 5 reps on Deadlift; add 5 kg after every session where all sets hit; after 3 misses in a row, propose dropping to 90% of the weight.
+    Hands on squatLoad: the squat slot's working weight when the program ends.
+
+  4 training days (press, dead, bench and squat) holding 8 exercises, over block weeks train ×3, deload, repeating.
+    Block weeks: train, train, train, deload, repeating. If you miss a session the plan waits: the next session is still the one you missed. Loads on a 5 lb grid.
+    Rotation: Each training week: Day press, then Day dead, then Day bench, then Day squat.
+    Attendance (from the rotation): Train at least 4 times in each 7-day window (from your start day). If you don't train for 21 days, attendance stops counting until your next session.
+    press: Wendler 5/3/1 on Overhead Press: three waves off a training max that starts at 90% of your estimated max, AMRAP last set, deload week; after each cycle's deload add 5 lb, or propose a reset to 90% of TM if any AMRAP fell short.
+    dead: Wendler 5/3/1 on Deadlift: three waves off a training max that starts at 90% of your estimated max, AMRAP last set, deload week; after each cycle's deload add 10 lb, or propose a reset to 90% of TM if any AMRAP fell short.
+    bench: Wendler 5/3/1 on Barbell Bench Press: three waves off a training max that starts at 90% of your estimated max, AMRAP last set, deload week; after each cycle's deload add 5 lb, or propose a reset to 90% of TM if any AMRAP fell short.
+    squat: Wendler 5/3/1 on Barbell Back Squat: three waves off a training max that starts at 90% of your estimated max, AMRAP last set, deload week; after each cycle's deload add 10 lb, or propose a reset to 90% of TM if any AMRAP fell short.
+    pressBbb: Boring But Big: 5×10 on Overhead Press at 50% of the press slot's training max; three sets in deload weeks.
+    deadBbb: Boring But Big: 5×10 on Deadlift at 50% of the dead slot's training max; three sets in deload weeks.
+    benchBbb: Boring But Big: 5×10 on Barbell Bench Press at 50% of the bench slot's training max; three sets in deload weeks.
+    squatBbb: Boring But Big: 5×10 on Barbell Back Squat at 50% of the squat slot's training max; three sets in deload weeks.
+
+  4 training days (A1, B1, A2 and B2) holding 4 exercises, over block weeks train, repeating.
+    Block weeks: train, repeating. If you miss a session the plan waits: the next session is still the one you missed. Loads on a 2.5 kg grid.
+    Rotation: Alternate Day A1 / Day B1 / Day A2 / Day B2, 3 sessions per training week.
+    Attendance (from the rotation): Train at least 3 times in each 7-day window (from your start day). If you don't train for 21 days, attendance stops counting until your next session.
+    squat: GZCLP T1 on Barbell Back Squat: 5×3+, then 6×2+, then 10×1+ on failure, adding 5 kg on success, counting total reps across all sets; after failing 10×1, test a 5RM and restart 5×3+ at 85% of it; starts at the squatLoad handed on by prog/linear-3x5 when a previous program hands one on.
+    bench: GZCLP T1 on Barbell Bench Press: 5×3+, then 6×2+, then 10×1+ on failure, adding 2.5 kg on success, counting total reps across all sets; after failing 10×1, test a 5RM and restart 5×3+ at 85% of it; starts at nothing when a previous program hands one on.
+    dead: GZCLP T1 on Deadlift: 5×3+, then 6×2+, then 10×1+ on failure, adding 5 kg on success, counting total reps across all sets; after failing 10×1, test a 5RM and restart 5×3+ at 85% of it; starts at nothing when a previous program hands one on.
+    press: GZCLP T1 on Overhead Press: 5×3+, then 6×2+, then 10×1+ on failure, adding 2.5 kg on success, counting total reps across all sets; after failing 10×1, test a 5RM and restart 5×3+ at 85% of it; starts at nothing when a previous program hands one on.
+    Starts squatStart from the previous run of prog/linear-3x5's squatLoad, if there was one.
+
+  2 training days (upperA and upperB) holding 6 exercises, over block weeks accumulation ×4, deload, once.
+    Block weeks: accumulation, accumulation, accumulation, accumulation, deload, once. If you miss a session the plan waits: the next session is still the one you missed. Loads on a 2 kg grid.
+    Rotation: Each training week: Day upperA, then Day upperB.
+    Attendance (from the rotation): Train at least 2 times in each 7-day window (from your start day). If you don't train for 21 days, attendance stops counting until your next session.
+    Reads your soreness check-in (checked in before the session; ignored once older than a day); your pump rating (rated after the session); your joint-pain rating (rated after the session).
+    In deload block weeks: deload each session: 90% of the load, 100% of any timed work, 50% of the sets, at least 4 in reserve, and no intensifier.
+    Always: any change to your set counts is proposed for your OK instead of applied.
+    flatDb: 2 sets of Flat DB Press for 8 reps to 12 reps plus any sets the muscle plan adds, reps in reserve stepping 3→0 across the block; add 2 kg once every set reaches 12 reps.
+    inclineDb: 2 sets of Incline DB Press for 8 reps to 12 reps plus any sets the muscle plan adds, reps in reserve stepping 3→0 across the block; add 2 kg once every set reaches 12 reps.
+    cableFlyA: 1 set of Cable Fly for 12 reps to 20 reps plus any sets the muscle plan adds, reps in reserve stepping 3→0 across the block; add 2.5 kg once every set reaches 20 reps.
+    cableFlyB: 1 set of Cable Fly for 12 reps to 20 reps plus any sets the muscle plan adds, reps in reserve stepping 3→0 across the block; add 2.5 kg once every set reaches 20 reps.
+    row: 3 sets of Chest-Supported Row for 8 reps to 12 reps plus any sets the muscle plan adds, reps in reserve stepping 3→0 across the block; add 2.5 kg once every set reaches 12 reps.
+    pulldown: 3 sets of Lat Pulldown for 10 reps to 15 reps plus any sets the muscle plan adds, reps in reserve stepping 3→0 across the block; add 2.5 kg once every set reaches 15 reps.
+    At the end of each block week (muscle plan): Next week's target is for each muscle, your weekly set target for that muscle (0 sets if unknown) plus the sets earned given your soreness check-in for that muscle and your pump rating for that muscle, capped at (by that muscle: chest → 22 sets; back → 25 sets; any other → 0 sets). The reallocation is starting from your weekly extra sets, for each muscle in turn: hand out the sets still to place [(next week's target for the muscle (0 sets if unknown) minus the sets the muscle is now planned to get in the week just closing, accumulation weeks only), never below 0 sets], one set at a time and at most 8 in all, each to whichever of the exercises that train the muscle directly ranks highest by the stimulus-to-fatigue score from your pump rating for the muscle and your joint-pain rating for that exercise (0 if either is unrated), at most 4 sets extra per exercise. Then:
+      - if the reallocation is unknown: Leave everything as is.
+      - otherwise: Set weekly set target to next week's target; set weekly extra sets to the reallocation.
+
+  1 training day (A) holding 2 exercises, over block weeks train, repeating.
+    Block weeks: train, repeating. If you miss a session the plan waits: the next session is still the one you missed.
+    Rotation: Each training week: Day A, then Day A, then Day A.
+    Attendance (from the rotation): Train at least 3 times in each 7-day window (from your start day). If you don't train for 21 days, attendance stops counting until your next session.
+    Day A: a circuit of pushStab and squatStab, resting 90 s between rounds.
+    pushStab: 2 sets of 12 reps to 20 reps at a slow tempo, on the current rung of Push-Up, Hands on Stability Ball, then Alternating DB Chest Press on Ball, then Single-Leg Standing Cable Press, starting from 0; climb a rung after 2 sessions in a row with every set done and solid form, up to rung 2.
+    squatStab: 2 sets of 12 reps to 20 reps at a slow tempo, on the current rung of Ball Wall Squat, then Single-Leg Squat, then Single-Leg Squat on Foam Pad, starting from 0; climb a rung after 2 sessions in a row with every set done and solid form, up to rung 2.
+
+  1 training day (A) holding 2 exercises, over block weeks train ×4, once.
+    Block weeks: train, train, train, train, once. If you miss a session the plan waits: the next session is still the one you missed. Loads on a 2.5 kg grid.
+    Rotation: Each training week: Day A, then Day A, then Day A.
+    Attendance (from the rotation): Train at least 3 times in each 7-day window (from your start day). If you don't train for 21 days, attendance stops counting until your next session.
+    Day A: superset bench and pushStab: rest 0 s between them, then 60 s.
+    bench: 3 sets of Barbell Bench Press in the phase rep range, starting at the benchStart handed on by the previous phase; add 2.5 kg once every set reaches the top of the range.
+    pushStab: 2 sets of 12 reps to 20 reps at a slow tempo, on the current rung of Push-Up, Hands on Stability Ball, then Alternating DB Chest Press on Ball, then Single-Leg Standing Cable Press, starting from the rung handed on by the previous phase; climb a rung after 2 sessions in a row with every set done and solid form, up to rung 2.
+
+  (b) APRE (a scheme; shown bound to bench; its chart is one threshold table):
+    APRE 6RM on Barbell Bench Press: two ramp sets, a max-reps top set at your 6RM, then 2 sets of back-offs whose load is adjusted by how the top set went (steps 5 lb/10 lb), at 90% of it
+      Reads your estimated max (kept on file; ignored once older than 56 days).
+      Starts with 6RM = the load you could lift for 6 reps with 0 in reserve, given an estimated max of your estimated max for Barbell Bench Press; written by session, owner.
+      Plan: Barbell Bench Press: 1 set of warm-up 12 reps at 50% of your 6RM; 1 set of warm-up 6 reps at 75% of your 6RM; 1 set of as many reps as possible (at least 6 reps) at your 6RM; 2 sets of back-off 6 reps at 90% of (the load you actually did on “top” plus the APRE adjustment for the reps you actually did on “top” on the max set, in steps of 5 lb and 10 lb).
+      After each session: Set 6RM to whichever is known first: (1) the load you logged on “top” plus the APRE adjustment for the reps you logged on “top” on the max set, in steps of 5 lb and 10 lb; (2) your 6RM.
+    The chart itself: (by the top-set reps: up to 2 reps → minus 10 lb; up to 4 reps → minus 5 lb; up to 7 reps → 0 kg; up to 12 reps → 5 lb; more → 10 lb).
+
+  (f) 5 phases (Stabilization endurance, then Strength endurance, then Hypertrophy, then Maximal strength, then Power), starting Monday 2 November.
+    Stabilization endurance (prog/opt-stabilization, 4–6 block weeks, advancing when the pushStab slot's rung is at least 2 and the squatStab slot's rung is at least 2; at 6 block weeks it asks you before moving on)
+    Strength endurance (prog/opt-strength-endurance, fixed); handoff: benchStart = nothing; rung = the pushStab slot's rung at the end of the previous phase
+    Hypertrophy (prog/opt-loaded, fixed); handoff: benchStart = the bench slot's working weight at the end of the previous phase
+    Maximal strength (prog/opt-loaded, fixed); handoff: benchStart = 115% of the bench slot's working weight at the end of the previous phase, rounded to the nearest 2.5 kg
+    Power (prog/opt-power, open); handoff: benchStart = the bench slot's working weight at the end of the previous phase
+
+══════════════════════════════════════════════════════════════════════════════
+5e. PROSE: Couch to 5K (repeat blocks, recovery steps, a week repeated on a miss)
+══════════════════════════════════════════════════════════════════════════════
+  1 training day (R) holding 1 exercise, over block weeks train, repeating.
+    Block weeks: train, repeating. If you miss a session the plan waits: the next session is still the one you missed.
+    Rotation: Each training week: Day R, then Day R, then Day R.
+    Attendance: Train at least 3 times in each 7-day window (from your start day); leave at least 2 days between workouts. If you don't train for 21 days, attendance stops counting until your next session.
+    run: Couch to 5K: nine weeks of run/walk sessions, three a week; move to the next week after three sessions with every run completed, and repeat the week if you have to stop a run.
+    Hands on weekReached: the run slot's programme week when the program ends.
+  Couch to 5K: nine weeks of run/walk sessions, three a week; move to the next week after three sessions with every run completed, and repeat the week if you have to stop a run
+    Starts with programme week = 0; written by session, owner.
+    Starts with completed sessions this week = 0; written by session, owner.
+    Plan: The entry at position your programme week (from 0, holding at the last) of: #0 Run, with brisk-walk recoveries: warm-up 5 min; 8 times: (1 min, then recovery 1:30 min); recovery 5 min; #1 Run, with brisk-walk recoveries: warm-up 5 min; 6 times: (1:30 min, then recovery 2 min); recovery 5 min; #2 Run, with brisk-walk recoveries: warm-up 5 min; 2 times: (1:30 min, then recovery 1:30 min, then 3 min, then recovery 3 min); recovery 5 min; #3 Run, with brisk-walk recoveries: warm-up 5 min; 3 min; recovery 1:30 min; 5 min; recovery 2:30 min; 3 min; recovery 1:30 min; 5 min; recovery 5 min; #4 Run, with brisk-walk recoveries: warm-up 5 min; 3 times: (5 min, then recovery 3 min); recovery 5 min; #5 Run, with brisk-walk recoveries: warm-up 5 min; 2 times: (10 min, then recovery 3 min); recovery 5 min; #6 Run, with brisk-walk recoveries: warm-up 5 min; 25 min; recovery 5 min; #7 Run, with brisk-walk recoveries: warm-up 5 min; 28 min; recovery 5 min; #8 Run, with brisk-walk recoveries: warm-up 5 min; 30 min; recovery 5 min.
+    After each session:
+      - if every working set reached its target:
+        - if your completed sessions this week plus 1 is at least 3: Set programme week to (your programme week plus 1), capped at 8; set completed sessions this week to 0.
+        - otherwise: Raise completed sessions this week by 1.
+      - if a working set fell short: Set completed sessions this week to 0.
+      - if nothing fell short but something went unlogged: Leave everything as is.
+
+══════════════════════════════════════════════════════════════════════════════
+5f. PROSE: an HR-zone tempo block (heart rate from the HR trace, pace in min/km)
+══════════════════════════════════════════════════════════════════════════════
+  3 training days (T, E and L) holding 3 exercises, over block weeks train ×3, deload, repeating.
+    Block weeks: train, train, train, deload, repeating. If you miss a session the plan waits: the next session is still the one you missed.
+    Rotation: Each training week: Day T, then Day E, then Day E, then Day L.
+    Attendance: Train at least 4 times in each 7-day window (from your start day); leave at least 2 days between hard sessions. If you don't train for 21 days, attendance stops counting until your next session.
+    tempo: A tempo run on Road Run: easy warm-up, then a tempo block at no slower than 4:45 per km with heart rate held at 85–89% of threshold, growing by 5 min each time you hold it without a very hard Borg rating, up to 40 min.
+    easy: 45 min easy on Road Run, heart rate under 75% of threshold.
+    long: 80 min easy on Road Run, heart rate under 75% of threshold.
+  A tempo run on Road Run: easy warm-up, then a tempo block at no slower than 4:45 per km with heart rate held at 85–89% of threshold, growing by 5 min each time you hold it without a very hard Borg rating, up to 40 min
+    Reads your lactate-threshold heart rate (kept on file; ignored once older than 84 days); your average heart rate (recorded during the session, avgHr); your Borg rating of the session (rated after the session).
+    Starts with tempo block = 20 min; written by session, owner.
+    Plan: Road Run: warm-up 15 min, keeping heart rate at most 80% of your lactate-threshold heart rate; your tempo block, pace at most 4:45 per km, keeping heart rate 85–89% of your lactate-threshold heart rate; recovery 10 min.
+    After each session:
+      - if every set of “tempo” reached its target:
+        - if your Borg rating of the session is below borg 17 (yes if unknown): Set tempo block to (your tempo block plus 5 min), capped at 40 min.
+        - otherwise: Leave everything as is.
+      - if a set of “tempo” fell short: Leave everything as is.
+      - if nothing fell short but something went unlogged: Leave everything as is.
+
+══════════════════════════════════════════════════════════════════════════════
+5g. PROSE: a pain-gated Achilles return (pain on two clocks, a proposed regression, a time floor)
+══════════════════════════════════════════════════════════════════════════════
+  2 phases (Pain modulation, then Progressive loading), starting Monday 14 September.
+    Pain modulation (prog/achilles-isometric, 2–6 block weeks, advancing when your pain rating the morning after the last session is at most pain 2 (no if unknown) and the days since you started the program is at least 14 days; at 6 block weeks it asks you before moving on)
+    Progressive loading (prog/achilles-loading, open)
+  1 training day (I) holding 1 exercise, over block weeks train, repeating.
+    Block weeks: train, repeating. If you miss a session the plan waits: the next session is still the one you missed.
+    Rotation: Do Day I once every day.
+    Attendance (from the rotation): Train at least 1 time each day. If you don't train for 21 days, attendance stops counting until your next session.
+    Reads your pain rating the morning after the last session (checked in before the session; ignored once older than a day).
+    iso: 5 sets of 45 s holds on Isometric Calf-Raise Hold, resting 2 min between holds, for pain relief.
+  1 training day (D) holding 1 exercise, over block weeks train, repeating.
+    Block weeks: train, repeating. If you miss a session the plan waits: the next session is still the one you missed. Loads on a 1 kg grid.
+    Rotation: Do Day D twice every day.
+    Attendance (from the rotation): Train at least 2 times each day. If you don't train for 21 days, attendance stops counting until your next session.
+    drops: 3×15 straight-knee and 3×15 bent-knee Eccentric Heel Drops; add 2.5 kg after a session done in full with pain at 2/10 or less; above 5/10, propose taking 2.5 kg off; a bad morning cuts each exercise to two sets.
+  3×15 straight-knee and 3×15 bent-knee Eccentric Heel Drops; add 2.5 kg after a session done in full with pain at 2/10 or less; above 5/10, propose taking 2.5 kg off; a bad morning cuts each exercise to two sets
+    Reads the pain you rated during the session (rated after the session); your pain rating the morning after the last session (checked in before the session; ignored once older than a day).
+    Starts with added load = 0 kg; written by session, owner.
+    Starts with flare-ups in a row = 0; written by session.
+    Plan:
+      - if your pain rating the morning after the last session is above pain 4 (no if unknown): Eccentric Heel Drop: 3 sets of 15 reps at your added load at tempo 3-0-1-0; 3 sets of 15 reps at your added load at tempo 3-0-1-0, with 67% of the sets.
+      - otherwise: Eccentric Heel Drop: 3 sets of 15 reps at your added load at tempo 3-0-1-0; 3 sets of 15 reps at your added load at tempo 3-0-1-0.
+    After each session:
+      - if the pain you rated during the session is unknown: Leave everything as is.
+      - otherwise:
+        - if the pain you rated during the session is above pain 5: Propose, for your OK: set added load to (your added load minus 2.5 kg), never below 0 kg; raise flare-ups in a row by 1.
+        - otherwise:
+          - if every working set reached its target:
+            - if the pain you rated during the session is at most pain 2: Raise added load by 2.5 kg; set flare-ups in a row to 0.
+            - otherwise: Set flare-ups in a row to 0.
+          - if a working set fell short: Set flare-ups in a row to 0.
+          - if nothing fell short but something went unlogged: Leave everything as is.
+
+══════════════════════════════════════════════════════════════════════════════
+5h. PROSE: a technique-bearing hypertrophy program (intensifier, stage read, deload strip, policies)
+══════════════════════════════════════════════════════════════════════════════
+  1 training day (A) holding 2 exercises, over block weeks train ×3, deload, repeating.
+    Block weeks: train, train, train, deload, repeating. If you miss a session the plan waits: the next session is still the one you missed. Loads on a 2.5 kg grid.
+    Rotation: Each training week: Day A, then Day A.
+    Attendance (from the rotation): Train at least 2 times in each 7-day window (from your start day). If you don't train for 21 days, attendance stops counting until your next session.
+    Reads your diet phase (kept on file); your readiness check-in (checked in before the session; ignored once older than a day).
+    In deload block weeks: deload each session: 90% of the load, 100% of any timed work, 50% of the sets, at least 4 in reserve, and no intensifier.
+    When your sessions in a row with a missed set is at least 3: deload each session: 90% of the load, 100% of any timed work, 50% of the sets, at least 4 in reserve, and no intensifier.
+    When your diet phase (“maintain” if unknown) is “cut”: any decrease in your working loads is proposed for your OK instead of applied, and set counts are not cut.
+    When your readiness check-in is at most readiness 2 (no if unknown): deload each session: 90% of the load, 100% of any timed work, 100% of the sets, at least 3 in reserve, and no intensifier.
+    Together (every matching rule applies, in the order listed):
+      When this is a deload week and your sessions in a row with a missed set is at least 3: the rules stack, so each session is 81% of the load, 25% of the sets, at least 4 in reserve and no intensifier.
+      When this is a deload week and your readiness check-in is at most readiness 2 (no if unknown): the rules stack, so each session is 81% of the load, 50% of the sets, at least 4 in reserve and no intensifier.
+      When your sessions in a row with a missed set is at least 3 and your readiness check-in is at most readiness 2 (no if unknown): the rules stack, so each session is 81% of the load, 50% of the sets, at least 4 in reserve and no intensifier.
+      When this is a deload week and your sessions in a row with a missed set is at least 3 and your readiness check-in is at most readiness 2 (no if unknown): the rules stack, so each session is 72.9% of the load, 25% of the sets, at least 4 in reserve and no intensifier.
+    press: 2 sets of 8 reps to 12 reps on Flat DB Press, the last set extended rest-pause; add 2 kg once the rest-pause set totals 20 reps.
+    row: 4 sets of 6 on Chest-Supported Row in clusters of 2 with short rests; add 2.5 kg once every set is done.
+    After each session (muscle plan): Set sessions in a row with a missed set to (if every working set reached its target: 0; if a working set fell short: your sessions in a row with a missed set plus 1; if nothing fell short but something went unlogged: your sessions in a row with a missed set).
+  2 sets of 8 reps to 12 reps on Flat DB Press, the last set extended rest-pause; add 2 kg once the rest-pause set totals 20 reps
+    Starts with working weight = nothing; written by session, owner.
+    Plan: Flat DB Press: 2 sets of 8 reps to 12 reps at your working weight; finish with a rest-pause (as many reps as possible (at least 3 reps) resting 15 s, then as many reps as possible (at least 2 reps) resting 15 s).
+    After each session: Set working weight to whichever is known first: (1) the earned weight; (2) your working weight; (3) the best load you logged on “work”.
+  4 sets of 6 on Chest-Supported Row in clusters of 2 with short rests; add 2.5 kg once every set is done
+    Starts with working weight = nothing; written by session, owner.
+    Plan: Chest-Supported Row: 4 sets of 6 reps at your working weight in clusters of 2 reps with 20 s between.
+    After each session: Set working weight to whichever is known first: (1) (if every working set reached its target: your working weight plus 2.5 kg; if a working set fell short: your working weight; if nothing fell short but something went unlogged: your working weight); (2) the best load you logged on “work”.
+
+══════════════════════════════════════════════════════════════════════════════
+5i. PROSE: policy stacking, composed (S3)
+══════════════════════════════════════════════════════════════════════════════
+  The default hit policy (all in order): co-firing deloads are stated as ONE result, not two sentences:
+    When this is a deload week and your sessions in a row with a missed set is at least 3: the rules stack, so each session is 81% of the load, 25% of the sets, at least 4 in reserve and no intensifier.
+    When this is a deload week and your readiness check-in is at most readiness 2 (no if unknown): the rules stack, so each session is 81% of the load, 50% of the sets, at least 4 in reserve and no intensifier.
+    When your sessions in a row with a missed set is at least 3 and your readiness check-in is at most readiness 2 (no if unknown): the rules stack, so each session is 81% of the load, 50% of the sets, at least 4 in reserve and no intensifier.
+    When this is a deload week and your sessions in a row with a missed set is at least 3 and your readiness check-in is at most readiness 2 (no if unknown): the rules stack, so each session is 72.9% of the load, 25% of the sets, at least 4 in reserve and no intensifier.
+  The same program declaring `hitPolicy: first`:
+    When this is a deload week and your sessions in a row with a missed set is at least 3: only the first of these rules applies (rule 1).
+    When this is a deload week and your readiness check-in is at most readiness 2 (no if unknown): only the first of these rules applies (rule 1).
+    When your sessions in a row with a missed set is at least 3 and your readiness check-in is at most readiness 2 (no if unknown): only the first of these rules applies (rule 2).
+    When this is a deload week and your sessions in a row with a missed set is at least 3 and your readiness check-in is at most readiness 2 (no if unknown): only the first of these rules applies (rule 1).
+
+══════════════════════════════════════════════════════════════════════════════
+5j. PROSE: the four scope ambiguities of the v2 describer, each pair now distinct
+══════════════════════════════════════════════════════════════════════════════
+  1. and over or, against or over and:
+    left:  (either your misses is at least 3 or your rung is at least 2) and your solid sessions is at least 1.
+    right: Your misses is at least 3 or (both your rung is at least 2 and your solid sessions is at least 1).
+  2. a conditional nested in the THEN arm, against an else-if chain (statements):
+    left:  - if your misses is at least 3:
+             - if your rung is at least 2: Set x to 1.
+             - otherwise: Set x to 2.
+           - otherwise: Set x to 3.
+    right: - if your misses is at least 3: Set x to 1.
+           - otherwise, if your rung is at least 2: Set x to 2.
+           - otherwise: Set x to 3.
+  2b. the same two shapes as values:
+    left:  (if your misses is at least 3: (if your rung is at least 2: 5 kg; otherwise: 6 kg); otherwise: 7 kg).
+    right: (if your misses is at least 3: 5 kg; otherwise: (if your rung is at least 2: 6 kg; otherwise: 7 kg)).
+  3. not over and, against and over not:
+    left:  Not both your misses is at least 3 and your rung is at least 2.
+    right: Not (your misses is at least 3) and your rung is at least 2.
+  4. an unknown-guard around a conditional, against one inside its last arm:
+    left:  - if the pain you rated during the session is unknown: Set x to 0.
+           - otherwise:
+             - if the pain you rated during the session is above pain 5: Set x to 1.
+             - otherwise: Set x to 2.
+    right: - if the pain you rated during the session is above pain 5: Set x to 1.
+           - otherwise:
+             - if the pain you rated during the session is unknown: Set x to 0.
+             - otherwise: Set x to 2.
+
+══════════════════════════════════════════════════════════════════════════════
+5k. PROSE: nouns and labels that cannot lie (S7)
+══════════════════════════════════════════════════════════════════════════════
+  In a user definition:    A 10% cut [110% of your training max].
+  In a library definition: A 10% cut. (library nouns pass review, like templates)
+  An exercise renders its registry label: Deadlift. (there is no label to supply)
+  A user program's own words do not render. prog/c25k says “Couch to 5K: three runs a week with a rest day between, progressing by completed sessions, not by the calendar”; it is described as:
+    1 training day (R) holding 1 exercise, over block weeks train, repeating.
+
+══════════════════════════════════════════════════════════════════════════════
+5l. PROSE: a 12-week wave from range(n), not 12 hand-typed rows (S9)
+══════════════════════════════════════════════════════════════════════════════
+  OK      demo/linear-wave
+  Barbell Back Squat: 3 sets of 5 reps at your training max × the wave [the item at position the block week (from 0) of [for i = 0 … 11: 65% plus (2.5% of i)] (holding at the last)].
+
+══════════════════════════════════════════════════════════════════════════════
+6. TIME: "legs 3x a week" and "missed one workout last week", run by the calendar slice
+══════════════════════════════════════════════════════════════════════════════
+  3 training days (A, B and C) holding 5 exercises, over block weeks train, repeating.
+    Block weeks: train, repeating. If you miss a session the plan waits: the next session is still the one you missed. Loads on a 2.5 kg grid.
+    Rotation: Each training week: Day A, then Day B, then Day C.
+    Attendance: Do at least 3 quads, hamstrings or glutes sessions in each 7-day window (from your start day); train at least 3 times in each 7-day window (from your start day). If you don't train for 21 days, attendance stops counting until your next session.
+  Live read for the home surface: how many quads, hamstrings or glutes sessions you did in the last 7 days.
+
+  Anchor Monday 5 October (a Monday), activated the same day; drift slide.
+  Activation issues 2 expectations for the first 7-day window (expect:i:0:0, expect:i:1:0).
+  Logged: Day A on Monday 5 October, B on the 7th, C on the 9th; then A on the 12th and B on the 15th.
+  Saturday 17th: Day C opened and finished with nothing logged → emptySession; it never reaches the calendar.
+  Saturday 17th: an ad-hoc squat session outside the program → counts for days-since-legs (detraining is physiological), never for attendance.
+  Days since your last legs session, read on Sunday 18th: 1 (the ad-hoc squat on the 17th).
+
+  Monday 19th, first prescribe: reconcile emits 14 dayClosed events (6 to 18 October) and applies them in order.
+  Reconcile again on the 19th: 0 events; the state is unchanged (L5).
+  Replaying a dayClosed already applied: no-op.
+    7-day window 1 (Monday 5 October to Sunday 11 October): 3 of 3 quads, hamstrings or glutes sessions.
+    7-day window 1 (Monday 5 October to Sunday 11 October): 3 of 3 workouts.
+    7-day window 2 (Monday 12 October to Sunday 18 October): 2 of 3 quads, hamstrings or glutes sessions (1 missed).
+    7-day window 2 (Monday 12 October to Sunday 18 October): 2 of 3 workouts (1 missed).
+  "Missed one workout last week" is the second window above: an expectation issued on the 11th, closed unmet on the 18th. No TM moved: the progress clock still points at Day C (slide).
+
+  Day C, logged offline on Sunday 18th, syncs on the 19th: an amendment is appended; the adherence row is never edited.
+    7-day window 2 (Monday 12 October to Sunday 18 October): 3 of 3 quads, hamstrings or glutes sessions. The workout on Sunday 18 October was logged late and now counts.
+    7-day window 2 (Monday 12 October to Sunday 18 October): 3 of 3 workouts. The workout on Sunday 18 October was logged late and now counts.
+  The live read on the 19th: 2 legs sessions in the last 7 days (rolling, stamped when read; misses come only from the tumbling windows).
+  completedFraction (an export of every instance): 1.00.
+
+  A pause from 28 to 30 October voids the window it touches (no proration); nothing else was logged:
+    7-day window 3 (Monday 19 October to Sunday 25 October): 0 of 3 quads, hamstrings or glutes sessions (3 missed).
+    7-day window 3 (Monday 19 October to Sunday 25 October): 0 of 3 workouts (3 missed).
+    7-day window 4 (Monday 26 October to Sunday 1 November): paused or lapsed, so it does not count.
+    7-day window 4 (Monday 26 October to Sunday 1 November): paused or lapsed, so it does not count.
+
+  Late logs only extend what the calendar knows (S8):
+  A run on Friday 9th, then Wednesday 7th's run syncs late: the last workout is still Friday 9 October (v2 moved it back to the 7th).
+  A tempo plan that reads "days since your last tempo session": the calendar tracks {"s":"any"}, {"s":"tag","tag":"hard"}, {"s":"slot","slot":"tempo"}.
+
+  The due verdict (prescribe, soft):
+  C25K, last run Monday 19th, opening the app Tuesday 20th: Rest today. Your next workout is due Wednesday 21 October: at least 2 days between workouts.
+  The same on Wednesday 21st: Due today.
+  A run stamped Wednesday 21st by a client a day ahead, prescribing on Tuesday 20th: Rest today. Your next workout is not before Friday 23 October: at least 2 days between workouts.
+  (the 2-day search horizon ran out; v2 printed an invented due day, Thursday 22nd, which was still blocked)
+
+  Feasibility, against the time memo §4.4 (which says four hard runs a week, 2 days apart, fit):
+    3 hard runs a week: feasible.
+    4 hard runs a week: infeasible (4 sessions every 7 days cannot stay 2 days apart (4 × 2 > 7)); 0, 2, 4, 6 fits ONE week, but day 6 to the next week's day 0 is 1 day.
+
+══════════════════════════════════════════════════════════════════════════════
+7. EXTENSION: one metric (power) and one fact (hrv), each a single registry entry
+══════════════════════════════════════════════════════════════════════════════
+  The whole diff surface (nothing else in the package changes):
+    registry.ts METRIC_DECLS  + power: {"dim":"power","shapes":["exact","range","atLeast","atMost","open"],"loggedBy":{"cardio":"plain"},"better":"higher","noun":"power","lead":"at","open":"power recorded"}
+    registry.ts FACT_DECLS    + hrv:   {"key":"none","ty":{"t":"q","dim":{}},"observed":"preSession","maxAgeDays":1,"grain":{"g":"instant"},"noun":"your morning HRV score"}
+  REFUSED the sweet-spot scheme against the BASE vocabulary
+          unknownName at plan.c.a.a: no fact hrv
+          unknownName at plan.a.s.steps.0.target.target.power: no metric power
+          unknownName at plan.b.steps.0.target.target.power: no metric power
+  OK      the same scheme against the extended vocabulary
+  Generated prose, no describer touched:
+    - if your morning HRV score is below 40 (no if unknown): Indoor Bike: 3 sets of 12 min, at 88–94% of your FTP, resting 3 min, at 90% of the power.
+    - otherwise: Indoor Bike: 3 sets of 12 min, at 88–94% of your FTP, resting 3 min.
+
+══════════════════════════════════════════════════════════════════════════════
+8. EVALUATOR: six worked programs, their first two block weeks under asPrescribed
+══════════════════════════════════════════════════════════════════════════════
+  Estimated maxes on file (kg): squat 140, bench 100, deadlift 180, press 60, the DB and cable lifts 30–90. Activated Monday 5 October.
+  Every set is logged at the floor of its bound (asPrescribed); the session prose is generated from the issued fact.
+
+  prog/531-bbb (strength canon):
+    Day press, Monday 5 October, block week 0 (train):
+      Overhead Press: 5 reps at 75 lb; 5 reps at 90 lb; as many reps as possible (at least 5 reps) at 100 lb
+      Overhead Press: 5 sets of back-off 10 reps at 60 lb
+    Day dead, Tuesday 6 October, block week 0 (train):
+      Deadlift: 5 reps at 230 lb; 5 reps at 270 lb; as many reps as possible (at least 5 reps) at 305 lb
+      Deadlift: 5 sets of back-off 10 reps at 180 lb
+    Day bench, Thursday 8 October, block week 0 (train):
+      Barbell Bench Press: 5 reps at 130 lb; 5 reps at 150 lb; as many reps as possible (at least 5 reps) at 170 lb
+      Barbell Bench Press: 5 sets of back-off 10 reps at 100 lb
+    Day squat, Saturday 10 October, block week 0 (train):
+      Barbell Back Squat: 5 reps at 180 lb; 5 reps at 210 lb; as many reps as possible (at least 5 reps) at 235 lb
+      Barbell Back Squat: 5 sets of back-off 10 reps at 140 lb
+    Day press, Monday 12 October, block week 1 (train):
+      Overhead Press: 3 reps at 85 lb; 3 reps at 95 lb; as many reps as possible (at least 3 reps) at 105 lb
+      Overhead Press: 5 sets of back-off 10 reps at 60 lb
+    Day dead, Tuesday 13 October, block week 1 (train):
+      Deadlift: 3 reps at 250 lb; 3 reps at 285 lb; as many reps as possible (at least 3 reps) at 320 lb
+      Deadlift: 5 sets of back-off 10 reps at 180 lb
+    Day bench, Thursday 15 October, block week 1 (train):
+      Barbell Bench Press: 3 reps at 140 lb; 3 reps at 160 lb; as many reps as possible (at least 3 reps) at 180 lb
+      Barbell Bench Press: 5 sets of back-off 10 reps at 100 lb
+    Day squat, Saturday 17 October, block week 1 (train):
+      Barbell Back Squat: 3 reps at 195 lb; 3 reps at 220 lb; as many reps as possible (at least 3 reps) at 250 lb
+      Barbell Back Squat: 5 sets of back-off 10 reps at 140 lb
+    What changed:
+      press session: set press an AMRAP fell short this cycle = no
+      dead session: set dead an AMRAP fell short this cycle = no
+      bench session: set bench an AMRAP fell short this cycle = no
+      squat session: set squat an AMRAP fell short this cycle = no
+      press session: set press an AMRAP fell short this cycle = no
+      dead session: set dead an AMRAP fell short this cycle = no
+      bench session: set bench an AMRAP fell short this cycle = no
+      squat session: set squat an AMRAP fell short this cycle = no
+
+  prog/rp-upper-meso (hypertrophy (RP)):
+    Day upperA, Monday 5 October, block week 0 (accumulation):
+      Flat DB Press: 2 sets of 8–12 reps no load (your working weight is not set yet) with 3 in reserve
+      Chest-Supported Row: 3 sets of 8–12 reps no load (your working weight is not set yet) with 3 in reserve
+      Cable Fly: 12–20 reps no load (your working weight is not set yet) with 3 in reserve
+    Day upperB, Thursday 8 October, block week 0 (accumulation):
+      Incline DB Press: 2 sets of 8–12 reps no load (your working weight is not set yet) with 3 in reserve
+      Lat Pulldown: 3 sets of 10–15 reps no load (your working weight is not set yet) with 3 in reserve
+      Cable Fly: 12–20 reps no load (your working weight is not set yet) with 3 in reserve
+    Day upperA, Monday 12 October, block week 1 (accumulation):
+      Flat DB Press: 2 sets of 8–12 reps no load (“work” is not logged yet) with 2 in reserve
+      Chest-Supported Row: 3 sets of 8–12 reps no load (“work” is not logged yet) with 2 in reserve
+      Cable Fly: 12–20 reps no load (“work” is not logged yet) with 2 in reserve
+    Day upperB, Thursday 15 October, block week 1 (accumulation):
+      Incline DB Press: 2 sets of 8–12 reps no load (“work” is not logged yet) with 2 in reserve
+      Lat Pulldown: 3 sets of 10–15 reps no load (“work” is not logged yet) with 2 in reserve
+      Cable Fly: 12–20 reps no load (“work” is not logged yet) with 2 in reserve
+    What changed:
+      flatDb session: set flatDb working weight = unknown (“work” is not logged yet)
+      row session: set row working weight = unknown (“work” is not logged yet)
+      cableFlyA session: set cableFlyA working weight = unknown (“work” is not logged yet)
+      inclineDb session: set inclineDb working weight = unknown (“work” is not logged yet)
+      pulldown session: set pulldown working weight = unknown (“work” is not logged yet)
+      cableFlyB session: set cableFlyB working weight = unknown (“work” is not logged yet)
+      program weekEnd: set weekly set target = {chest: 10 sets, back: 12 sets}; proposed weekly extra sets = {flatDb: 4 sets, inclineDb: 0 sets, cableFlyA: 0 sets, cableFlyB: 0 sets, row: 4 sets, pulldown: 2 sets} (by rule 2)
+      flatDb session: set flatDb working weight = unknown (“work” is not logged yet)
+      … and 6 more
+
+  prog/upper-hypertrophy-dc (techniques and policies):
+    Day A, Monday 5 October, block week 0 (train):
+      Flat DB Press: 2 sets of 8–12 reps no load (your working weight is not set yet); finish with a rest-pause (as many reps as possible (at least 3 reps) resting 15 s, then as many reps as possible (at least 2 reps) resting 15 s)
+      Chest-Supported Row: 4 sets of 6 reps no load (your working weight is not set yet) in clusters of 2 reps with 20 s between
+    Day A, Thursday 8 October, block week 0 (train):
+      Flat DB Press: 2 sets of 8–12 reps no load (“work” is not logged yet); finish with a rest-pause (as many reps as possible (at least 3 reps) resting 15 s, then as many reps as possible (at least 2 reps) resting 15 s)
+      Chest-Supported Row: 4 sets of 6 reps no load (“work” is not logged yet) in clusters of 2 reps with 20 s between
+    Day A, Monday 12 October, block week 1 (train):
+      Flat DB Press: 2 sets of 8–12 reps no load (“work” is not logged yet); finish with a rest-pause (as many reps as possible (at least 3 reps) resting 15 s, then as many reps as possible (at least 2 reps) resting 15 s)
+      Chest-Supported Row: 4 sets of 6 reps no load (“work” is not logged yet) in clusters of 2 reps with 20 s between
+    Day A, Thursday 15 October, block week 1 (train):
+      Flat DB Press: 2 sets of 8–12 reps no load (“work” is not logged yet); finish with a rest-pause (as many reps as possible (at least 3 reps) resting 15 s, then as many reps as possible (at least 2 reps) resting 15 s)
+      Chest-Supported Row: 4 sets of 6 reps no load (“work” is not logged yet) in clusters of 2 reps with 20 s between
+    What changed:
+      press session: set press working weight = unknown (“work” is not logged yet)
+      row session: set row working weight = unknown (“work” is not logged yet)
+      program session: set sessions in a row with a missed set = 0
+      press session: set press working weight = unknown (“work” is not logged yet)
+      row session: set row working weight = unknown (“work” is not logged yet)
+      program session: set sessions in a row with a missed set = 0
+      press session: set press working weight = unknown (“work” is not logged yet)
+      row session: set row working weight = unknown (“work” is not logged yet)
+      … and 4 more
+
+  prog/c25k (cardio):
+    Day R, Monday 5 October, block week 0 (train):
+      Run, with brisk-walk recoveries: warm-up 5 min; 8 times: (1 min, then recovery 1:30 min); recovery 5 min
+    Day R, Wednesday 7 October, block week 0 (train):
+      Run, with brisk-walk recoveries: warm-up 5 min; 8 times: (1 min, then recovery 1:30 min); recovery 5 min
+    Day R, Friday 9 October, block week 0 (train):
+      Run, with brisk-walk recoveries: warm-up 5 min; 8 times: (1 min, then recovery 1:30 min); recovery 5 min
+    Day R, Monday 12 October, block week 1 (train):
+      Run, with brisk-walk recoveries: warm-up 5 min; 6 times: (1:30 min, then recovery 2 min); recovery 5 min
+    Day R, Wednesday 14 October, block week 1 (train):
+      Run, with brisk-walk recoveries: warm-up 5 min; 6 times: (1:30 min, then recovery 2 min); recovery 5 min
+    Day R, Friday 16 October, block week 1 (train):
+      Run, with brisk-walk recoveries: warm-up 5 min; 6 times: (1:30 min, then recovery 2 min); recovery 5 min
+    What changed:
+      run session: set run completed sessions this week = 1
+      run session: set run completed sessions this week = 2
+      run session: set run programme week = 1; set run completed sessions this week = 0
+      run session: set run completed sessions this week = 1
+      run session: set run completed sessions this week = 2
+      run session: set run programme week = 2; set run completed sessions this week = 0
+
+  prog/legs-3x (frequency and adherence):
+    Day A, Monday 5 October, block week 0 (train):
+      Barbell Back Squat: 3 sets of 5 reps at 117.5 kg
+      Barbell Bench Press: 3 sets of 5 reps at 82.5 kg
+    Day B, Wednesday 7 October, block week 0 (train):
+      Romanian Deadlift: 3 sets of 8–12 reps at 95 kg
+      Chest-Supported Row: 3 sets of 8–12 reps at 62.5 kg
+    Day C, Friday 9 October, block week 0 (train):
+      Barbell Hip Thrust: 3 sets of 8–12 reps at 110 kg
+      Barbell Bench Press: 3 sets of 5 reps at 85 kg
+    Day A, Monday 12 October, block week 1 (train):
+      Barbell Back Squat: 3 sets of 5 reps at 120 kg
+      Barbell Bench Press: 3 sets of 5 reps at 85 kg
+    Day B, Wednesday 14 October, block week 1 (train):
+      Romanian Deadlift: 3 sets of 8–12 reps at 95 kg
+      Chest-Supported Row: 3 sets of 8–12 reps at 62.5 kg
+    Day C, Friday 16 October, block week 1 (train):
+      Barbell Hip Thrust: 3 sets of 8–12 reps at 110 kg
+      Barbell Bench Press: 3 sets of 5 reps at 87.5 kg
+    What changed:
+      squat session: set squat working weight = 119.167 kg; set squat missed sessions in a row = 0
+      bench session: set bench working weight = 84.583 kg; set bench missed sessions in a row = 0
+      rdl session: set rdl working weight = 95.455 kg
+      row session: set row working weight = 61.364 kg
+      thrust session: set thrust working weight = 109.091 kg
+      bench session: set bench working weight = 85.833 kg; set bench missed sessions in a row = 0
+      squat session: set squat working weight = 121.667 kg; set squat missed sessions in a row = 0
+      bench session: set bench working weight = 87.083 kg; set bench missed sessions in a row = 0
+      … and 4 more
+
+  prog/achilles-loading (pain-gated rehab), pain rated 1/10 after each session, first three days:
+    Day D, Monday 5 October, block week 0 (train):
+      Eccentric Heel Drop: 3 sets of 15 reps at 0 kg at tempo 3-0-1-0; 3 sets of 15 reps at 0 kg at tempo 3-0-1-0
+    Day D, Monday 5 October, block week 0 (train):
+      Eccentric Heel Drop: 3 sets of 15 reps at 2 kg at tempo 3-0-1-0; 3 sets of 15 reps at 2 kg at tempo 3-0-1-0
+    Day D, Tuesday 6 October, block week 0 (train):
+      Eccentric Heel Drop: 3 sets of 15 reps at 5 kg at tempo 3-0-1-0; 3 sets of 15 reps at 5 kg at tempo 3-0-1-0
+    Day D, Tuesday 6 October, block week 0 (train):
+      Eccentric Heel Drop: 3 sets of 15 reps at 7 kg at tempo 3-0-1-0; 3 sets of 15 reps at 7 kg at tempo 3-0-1-0
+    Day D, Wednesday 7 October, block week 0 (train):
+      Eccentric Heel Drop: 3 sets of 15 reps at 10 kg at tempo 3-0-1-0; 3 sets of 15 reps at 10 kg at tempo 3-0-1-0
+    Day D, Wednesday 7 October, block week 0 (train):
+      Eccentric Heel Drop: 3 sets of 15 reps at 12 kg at tempo 3-0-1-0; 3 sets of 15 reps at 12 kg at tempo 3-0-1-0
+    What changed:
+      drops session: set drops added load = 2.5 kg; set drops flare-ups in a row = 0
+      drops session: set drops added load = 5 kg; set drops flare-ups in a row = 0
+      drops session: set drops added load = 7.5 kg; set drops flare-ups in a row = 0
+      drops session: set drops added load = 10 kg; set drops flare-ups in a row = 0
+      drops session: set drops added load = 12.5 kg; set drops flare-ups in a row = 0
+      drops session: set drops added load = 15 kg; set drops flare-ups in a row = 0
+
+══════════════════════════════════════════════════════════════════════════════
+8b. EVALUATOR: traces, live resolution, and macros run forward
+══════════════════════════════════════════════════════════════════════════════
+  Inverse Epley: 100 kg: the load you could lift for 5 reps with 1 in reserve, given an estimated max of 120 kg; worked: 100 kg (120 kg × 0.833)
+  APRE chart, 9 reps: 5 lb: the APRE adjustment for 9 reps on the max set, in steps of 5 lb and 10 lb; worked: 5 lb
+  APRE on bench, issued (the back-offs are OPEN: they read the top set):
+    Day A, Monday 5 October, block week 0 (train):
+      Barbell Bench Press: warm-up 12 reps at 90 lb; warm-up 6 reps at 140 lb; as many reps as possible (at least 6 reps) at 185 lb; 2 sets of back-off 6 reps load set from how “top” goes (planned: at 165 lb)
+  The top set logged at 9 reps resolves 2 back-off loads (the issued fact is untouched):
+      Barbell Bench Press: warm-up 12 reps at 90 lb; warm-up 6 reps at 140 lb; as many reps as possible (at least 6 reps) at 185 lb; 2 sets of back-off 6 reps at 170 lb
+    worked, before the 5 lb grid: 171 lb (190 lb (185 lb + 5 lb: the APRE adjustment for 9 reps on the max set, in steps of 5 lb and 10 lb; worked: 5 lb) × 90%)
+
+  macro/opt-16wk, asPrescribed, form rated solid after each session:
+    Stabilization endurance: 4 block weeks from Monday 2 November; ended because its gate held.
+    Strength endurance: 4 block weeks from Monday 30 November; ended because its calendar ran out; handed benchStart = unknown (nothing was given); rung = 2.
+    Hypertrophy: 4 block weeks from Monday 28 December; ended because its calendar ran out; handed benchStart = 68.182 kg.
+    Maximal strength: 4 block weeks from Monday 25 January; ended because its calendar ran out; handed benchStart = 77.5 kg.
+    Power: 4 block weeks from Monday 22 February; ended because its calendar ran out; handed benchStart = 77.5 kg.
+
+  macro/achilles-return, asPrescribed, no morning-pain check-ins:
+    Pain modulation: 6 block weeks from Monday 14 September; ended because it reached its maximum and ASKS you before moving on.
+
+══════════════════════════════════════════════════════════════════════════════
+8c. EVALUATOR: the weekly read's declared basis, across RP's deload weekEnd
+══════════════════════════════════════════════════════════════════════════════
+  RP after four accumulation weeks, asPrescribed: block week 4 (deload) is the one its next weekEnd closes.
+  One rule, "a 12-set chest target minus the weekly chest sets", under the two option sets:
+    default options (closing, all roles): The sets still to place [(12 sets minus the sets chest already gets each week), never below 0 sets].
+      at the deload weekEnd: 8 sets (max(0 sets, 8 sets (12 sets − 4 sets)))
+    RP's declaration (closing, accumulation only): The sets still to place [(12 sets minus the sets chest is now planned to get in the week just closing, accumulation weeks only), never below 0 sets].
+      at the deload weekEnd: unknown (this is a deload week, which the weekly read leaves out)
+  RP's own muscle plan at each weekEnd, as recorded (the default read would have allocated out of the deload's halved sets):
+    block week 0: set weekly set target = {chest: 10 sets, back: 12 sets}; proposed weekly extra sets = {flatDb: 4 sets, inclineDb: 0 sets, cableFlyA: 0 sets, cableFlyB: 0 sets, row: 4 sets, pulldown: 2 sets}
+    block week 1: set weekly set target = {chest: 10 sets, back: 12 sets}; proposed weekly extra sets = {flatDb: 4 sets, inclineDb: 0 sets, cableFlyA: 0 sets, cableFlyB: 0 sets, row: 4 sets, pulldown: 2 sets}
+    block week 2: set weekly set target = {chest: 10 sets, back: 12 sets}; proposed weekly extra sets = {flatDb: 4 sets, inclineDb: 0 sets, cableFlyA: 0 sets, cableFlyB: 0 sets, row: 4 sets, pulldown: 2 sets}
+    block week 3: set weekly set target = {chest: 10 sets, back: 12 sets}; proposed weekly extra sets = {flatDb: 4 sets, inclineDb: 0 sets, cableFlyA: 0 sets, cableFlyB: 0 sets, row: 4 sets, pulldown: 2 sets}
+    block week 4 (deload): kept everything (a recorded keep: the weekly read was absent)

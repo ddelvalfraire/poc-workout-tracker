@@ -1,0 +1,66 @@
+{
+ "entries": [
+  {
+   "kind": "fn",
+   "ref": {
+    "id": "user/bump",
+    "version": 1
+   },
+   "params": {
+    "load": {
+     "t": "q",
+     "dim": {
+      "mass": 1
+     }
+    }
+   },
+   "result": {
+    "t": "q",
+    "dim": {
+     "mass": 1
+    }
+   },
+   "says": "a small bump on {load}",
+   "enums": {},
+   "examples": [
+    {
+     "args": {
+      "load": {
+       "k": "lit",
+       "lit": {
+        "k": "q",
+        "v": 100,
+        "unit": "kg"
+       }
+      }
+     },
+     "gives": {
+      "k": "lit",
+      "lit": {
+       "k": "q",
+       "v": 105,
+       "unit": "kg"
+      }
+     }
+    }
+   ],
+   "body": {
+    "k": "arith",
+    "op": "*",
+    "a": {
+     "k": "param",
+     "name": "load"
+    },
+    "b": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 1.05,
+      "unit": "pct"
+     }
+    }
+   }
+  }
+ ],
+ "vocab": "base"
+}

@@ -1,0 +1,256 @@
+{
+ "kind": "program",
+ "ref": {
+  "id": "prog/opt-stabilization",
+  "version": 1
+ },
+ "says": "OPT Phase 1: stabilization endurance circuits on proprioceptive ladders",
+ "params": {},
+ "facts": [],
+ "enums": {},
+ "calendar": {
+  "weeks": [
+   "train"
+  ],
+  "repeat": "cycle",
+  "drift": "slide"
+ },
+ "grids": {},
+ "muscles": [
+  "chest",
+  "quads"
+ ],
+ "slots": {
+  "pushStab": {
+   "scheme": {
+    "id": "lib/stab-ladder",
+    "version": 1
+   },
+   "args": {
+    "ladder": {
+     "k": "list",
+     "of": {
+      "t": "ref",
+      "kind": "exercise",
+      "logging": [
+       "bodyweight_reps",
+       "weight_reps"
+      ]
+     },
+     "items": [
+      {
+       "k": "lit",
+       "lit": {
+        "k": "ref",
+        "kind": "exercise",
+        "id": "wger:ball-push-up"
+       }
+      },
+      {
+       "k": "lit",
+       "lit": {
+        "k": "ref",
+        "kind": "exercise",
+        "id": "wger:sa-ball-db-press"
+       }
+      },
+      {
+       "k": "lit",
+       "lit": {
+        "k": "ref",
+        "kind": "exercise",
+        "id": "wger:sl-cable-press"
+       }
+      }
+     ]
+    },
+    "start": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 0,
+      "unit": "x"
+     }
+    },
+    "top": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 2,
+      "unit": "x"
+     }
+    },
+    "need": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 2,
+      "unit": "x"
+     }
+    },
+    "sets": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 2,
+      "unit": "set"
+     }
+    },
+    "lo": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 12,
+      "unit": "rep"
+     }
+    },
+    "hi": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 20,
+      "unit": "rep"
+     }
+    }
+   },
+   "meta": {
+    "muscles": {
+     "chest": 1
+    }
+   }
+  },
+  "squatStab": {
+   "scheme": {
+    "id": "lib/stab-ladder",
+    "version": 1
+   },
+   "args": {
+    "ladder": {
+     "k": "list",
+     "of": {
+      "t": "ref",
+      "kind": "exercise",
+      "logging": [
+       "bodyweight_reps",
+       "weight_reps"
+      ]
+     },
+     "items": [
+      {
+       "k": "lit",
+       "lit": {
+        "k": "ref",
+        "kind": "exercise",
+        "id": "wger:ball-wall-squat"
+       }
+      },
+      {
+       "k": "lit",
+       "lit": {
+        "k": "ref",
+        "kind": "exercise",
+        "id": "wger:sl-squat"
+       }
+      },
+      {
+       "k": "lit",
+       "lit": {
+        "k": "ref",
+        "kind": "exercise",
+        "id": "wger:sl-squat-pad"
+       }
+      }
+     ]
+    },
+    "start": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 0,
+      "unit": "x"
+     }
+    },
+    "top": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 2,
+      "unit": "x"
+     }
+    },
+    "need": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 2,
+      "unit": "x"
+     }
+    },
+    "sets": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 2,
+      "unit": "set"
+     }
+    },
+    "lo": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 12,
+      "unit": "rep"
+     }
+    },
+    "hi": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 20,
+      "unit": "rep"
+     }
+    }
+   },
+   "meta": {
+    "muscles": {
+     "quads": 1
+    }
+   }
+  }
+ },
+ "days": {
+  "A": [
+   {
+    "k": "circuit",
+    "slots": [
+     "pushStab",
+     "squatStab"
+    ],
+    "restBetweenRounds": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 90,
+      "unit": "s"
+     }
+    },
+    "score": null
+   }
+  ]
+ },
+ "rotation": {
+  "k": "weekly",
+  "days": [
+   "A",
+   "A",
+   "A"
+  ]
+ },
+ "frequency": [],
+ "lapseAfterDays": 21,
+ "hitPolicy": "allInOrder",
+ "policies": [],
+ "aggregate": null,
+ "exports": {},
+ "imports": {}
+}

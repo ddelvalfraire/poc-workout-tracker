@@ -1,0 +1,639 @@
+{
+ "kind": "scheme",
+ "ref": {
+  "id": "lib/531-jokers",
+  "version": 2
+ },
+ "says": "5/3/1 on {lift} off {tm}, with up to three jokers when the top set makes its reps, then 3–5 sets of 5 at the first-set weight",
+ "params": {
+  "lift": {
+   "t": "ref",
+   "kind": "exercise",
+   "logging": [
+    "weight_reps"
+   ]
+  },
+  "tm": {
+   "t": "opt",
+   "of": {
+    "t": "q",
+    "dim": {
+     "mass": 1
+    }
+   }
+  },
+  "jokerStep": {
+   "t": "q",
+   "dim": {}
+  }
+ },
+ "defaults": {
+  "jokerStep": {
+   "k": "lit",
+   "lit": {
+    "k": "q",
+    "v": 1.05,
+    "unit": "pct"
+   }
+  }
+ },
+ "labels": {
+  "jokerStep": "Joker step"
+ },
+ "facts": [],
+ "enums": {},
+ "state": {},
+ "plan": {
+  "k": "session",
+  "exercise": {
+   "k": "param",
+   "name": "lift"
+  },
+  "steps": [
+   {
+    "k": "step",
+    "id": "s1",
+    "count": {
+     "k": "n",
+     "n": {
+      "k": "lit",
+      "lit": {
+       "k": "q",
+       "v": 1,
+       "unit": "set"
+      }
+     }
+    },
+    "target": {
+     "k": "set",
+     "role": "working",
+     "target": {
+      "reps": {
+       "b": "exact",
+       "v": {
+        "k": "table",
+        "key": {
+         "k": "pos",
+         "field": "trainWeek"
+        },
+        "rows": [
+         {
+          "when": null,
+          "then": {
+           "k": "lit",
+           "lit": {
+            "k": "q",
+            "v": 5,
+            "unit": "rep"
+           }
+          }
+         },
+         {
+          "when": null,
+          "then": {
+           "k": "lit",
+           "lit": {
+            "k": "q",
+            "v": 3,
+            "unit": "rep"
+           }
+          }
+         },
+         {
+          "when": null,
+          "then": {
+           "k": "lit",
+           "lit": {
+            "k": "q",
+            "v": 5,
+            "unit": "rep"
+           }
+          }
+         }
+        ],
+        "otherwise": null,
+        "overflow": "cycle"
+       }
+      },
+      "load": {
+       "b": "exact",
+       "v": {
+        "k": "known",
+        "a": {
+         "k": "param",
+         "name": "tm"
+        },
+        "as": "v33",
+        "body": {
+         "k": "arith",
+         "op": "*",
+         "a": {
+          "k": "var",
+          "name": "v33"
+         },
+         "b": {
+          "k": "table",
+          "key": {
+           "k": "pos",
+           "field": "trainWeek"
+          },
+          "rows": [
+           {
+            "when": null,
+            "then": {
+             "k": "lit",
+             "lit": {
+              "k": "q",
+              "v": 0.65,
+              "unit": "pct"
+             }
+            }
+           },
+           {
+            "when": null,
+            "then": {
+             "k": "lit",
+             "lit": {
+              "k": "q",
+              "v": 0.7000000000000001,
+              "unit": "pct"
+             }
+            }
+           },
+           {
+            "when": null,
+            "then": {
+             "k": "lit",
+             "lit": {
+              "k": "q",
+              "v": 0.75,
+              "unit": "pct"
+             }
+            }
+           }
+          ],
+          "otherwise": null,
+          "overflow": "cycle"
+         }
+        },
+        "then": false
+       }
+      }
+     },
+     "rest": null,
+     "tempo": null,
+     "cluster": null
+    }
+   },
+   {
+    "k": "step",
+    "id": "s2",
+    "count": {
+     "k": "n",
+     "n": {
+      "k": "lit",
+      "lit": {
+       "k": "q",
+       "v": 1,
+       "unit": "set"
+      }
+     }
+    },
+    "target": {
+     "k": "set",
+     "role": "working",
+     "target": {
+      "reps": {
+       "b": "exact",
+       "v": {
+        "k": "table",
+        "key": {
+         "k": "pos",
+         "field": "trainWeek"
+        },
+        "rows": [
+         {
+          "when": null,
+          "then": {
+           "k": "lit",
+           "lit": {
+            "k": "q",
+            "v": 5,
+            "unit": "rep"
+           }
+          }
+         },
+         {
+          "when": null,
+          "then": {
+           "k": "lit",
+           "lit": {
+            "k": "q",
+            "v": 3,
+            "unit": "rep"
+           }
+          }
+         },
+         {
+          "when": null,
+          "then": {
+           "k": "lit",
+           "lit": {
+            "k": "q",
+            "v": 3,
+            "unit": "rep"
+           }
+          }
+         }
+        ],
+        "otherwise": null,
+        "overflow": "cycle"
+       }
+      },
+      "load": {
+       "b": "exact",
+       "v": {
+        "k": "known",
+        "a": {
+         "k": "param",
+         "name": "tm"
+        },
+        "as": "v34",
+        "body": {
+         "k": "arith",
+         "op": "*",
+         "a": {
+          "k": "var",
+          "name": "v34"
+         },
+         "b": {
+          "k": "table",
+          "key": {
+           "k": "pos",
+           "field": "trainWeek"
+          },
+          "rows": [
+           {
+            "when": null,
+            "then": {
+             "k": "lit",
+             "lit": {
+              "k": "q",
+              "v": 0.75,
+              "unit": "pct"
+             }
+            }
+           },
+           {
+            "when": null,
+            "then": {
+             "k": "lit",
+             "lit": {
+              "k": "q",
+              "v": 0.8,
+              "unit": "pct"
+             }
+            }
+           },
+           {
+            "when": null,
+            "then": {
+             "k": "lit",
+             "lit": {
+              "k": "q",
+              "v": 0.85,
+              "unit": "pct"
+             }
+            }
+           }
+          ],
+          "otherwise": null,
+          "overflow": "cycle"
+         }
+        },
+        "then": false
+       }
+      }
+     },
+     "rest": null,
+     "tempo": null,
+     "cluster": null
+    }
+   },
+   {
+    "k": "step",
+    "id": "s3",
+    "count": {
+     "k": "n",
+     "n": {
+      "k": "lit",
+      "lit": {
+       "k": "q",
+       "v": 1,
+       "unit": "set"
+      }
+     }
+    },
+    "target": {
+     "k": "set",
+     "role": "amrap",
+     "target": {
+      "reps": {
+       "b": "atLeast",
+       "v": {
+        "k": "table",
+        "key": {
+         "k": "pos",
+         "field": "trainWeek"
+        },
+        "rows": [
+         {
+          "when": null,
+          "then": {
+           "k": "lit",
+           "lit": {
+            "k": "q",
+            "v": 5,
+            "unit": "rep"
+           }
+          }
+         },
+         {
+          "when": null,
+          "then": {
+           "k": "lit",
+           "lit": {
+            "k": "q",
+            "v": 3,
+            "unit": "rep"
+           }
+          }
+         },
+         {
+          "when": null,
+          "then": {
+           "k": "lit",
+           "lit": {
+            "k": "q",
+            "v": 1,
+            "unit": "rep"
+           }
+          }
+         }
+        ],
+        "otherwise": null,
+        "overflow": "cycle"
+       }
+      },
+      "load": {
+       "b": "exact",
+       "v": {
+        "k": "known",
+        "a": {
+         "k": "param",
+         "name": "tm"
+        },
+        "as": "v35",
+        "body": {
+         "k": "arith",
+         "op": "*",
+         "a": {
+          "k": "var",
+          "name": "v35"
+         },
+         "b": {
+          "k": "table",
+          "key": {
+           "k": "pos",
+           "field": "trainWeek"
+          },
+          "rows": [
+           {
+            "when": null,
+            "then": {
+             "k": "lit",
+             "lit": {
+              "k": "q",
+              "v": 0.85,
+              "unit": "pct"
+             }
+            }
+           },
+           {
+            "when": null,
+            "then": {
+             "k": "lit",
+             "lit": {
+              "k": "q",
+              "v": 0.9,
+              "unit": "pct"
+             }
+            }
+           },
+           {
+            "when": null,
+            "then": {
+             "k": "lit",
+             "lit": {
+              "k": "q",
+              "v": 0.9500000000000001,
+              "unit": "pct"
+             }
+            }
+           }
+          ],
+          "otherwise": null,
+          "overflow": "cycle"
+         }
+        },
+        "then": false
+       }
+      }
+     },
+     "rest": null,
+     "tempo": null,
+     "cluster": null
+    }
+   },
+   {
+    "k": "step",
+    "id": "joker",
+    "count": {
+     "k": "while",
+     "go": {
+      "k": "orElse",
+      "a": {
+       "k": "known",
+       "a": {
+        "k": "performed",
+        "step": "s3",
+        "metric": "reps",
+        "pick": "last"
+       },
+       "as": "v36",
+       "body": {
+        "k": "known",
+        "a": {
+         "k": "prescribed",
+         "step": "s3",
+         "metric": "reps",
+         "edge": "floor"
+        },
+        "as": "v37",
+        "body": {
+         "k": "cmp",
+         "op": ">=",
+         "a": {
+          "k": "var",
+          "name": "v36"
+         },
+         "b": {
+          "k": "var",
+          "name": "v37"
+         }
+        },
+        "then": false
+       },
+       "then": true
+      },
+      "b": {
+       "k": "lit",
+       "lit": {
+        "k": "bool",
+        "v": false
+       }
+      }
+     },
+     "max": 3
+    },
+    "target": {
+     "k": "set",
+     "role": "working",
+     "target": {
+      "reps": {
+       "b": "exact",
+       "v": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 1,
+         "unit": "rep"
+        }
+       }
+      },
+      "load": {
+       "b": "exact",
+       "v": {
+        "k": "orElse",
+        "a": {
+         "k": "known",
+         "a": {
+          "k": "performed",
+          "step": "joker",
+          "metric": "load",
+          "pick": "last"
+         },
+         "as": "v38",
+         "body": {
+          "k": "arith",
+          "op": "*",
+          "a": {
+           "k": "var",
+           "name": "v38"
+          },
+          "b": {
+           "k": "param",
+           "name": "jokerStep"
+          }
+         },
+         "then": false
+        },
+        "b": {
+         "k": "known",
+         "a": {
+          "k": "performed",
+          "step": "s3",
+          "metric": "load",
+          "pick": "last"
+         },
+         "as": "v39",
+         "body": {
+          "k": "arith",
+          "op": "*",
+          "a": {
+           "k": "var",
+           "name": "v39"
+          },
+          "b": {
+           "k": "param",
+           "name": "jokerStep"
+          }
+         },
+         "then": false
+        }
+       }
+      }
+     },
+     "rest": null,
+     "tempo": null,
+     "cluster": null
+    }
+   },
+   {
+    "k": "step",
+    "id": "fsl",
+    "count": {
+     "k": "range",
+     "min": {
+      "k": "lit",
+      "lit": {
+       "k": "q",
+       "v": 3,
+       "unit": "set"
+      }
+     },
+     "max": {
+      "k": "lit",
+      "lit": {
+       "k": "q",
+       "v": 5,
+       "unit": "set"
+      }
+     }
+    },
+    "target": {
+     "k": "set",
+     "role": "backoff",
+     "target": {
+      "reps": {
+       "b": "exact",
+       "v": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 5,
+         "unit": "rep"
+        }
+       }
+      },
+      "load": {
+       "b": "exact",
+       "v": {
+        "k": "prescribed",
+        "step": "s1",
+        "metric": "load",
+        "edge": "floor"
+       }
+      }
+     },
+     "rest": null,
+     "tempo": null,
+     "cluster": null
+    }
+   }
+  ],
+  "intensifier": null
+ },
+ "on": {},
+ "examples": []
+}

@@ -1,0 +1,5 @@
+{"source": {"suite":"semantics","test":"a silent exercise issues the slot with its steps and the cause, never a default exercise","ids":["EC-31","EC-179"]}, "fixtures": [
+{"op":"time.calendarSpecOf","args":[{"$def":"prog/linear-3x5@1"},[],"x","2026-10-05","2026-10-05"],"world":{},"expected":{"ret":{"instance":"x","anchor":"2026-10-05","activatedOn":"2026-10-05","frequency":[{"k":"atLeast","n":3,"of":{"s":"any"},"per":{"k":"week"}}],"slots":{"squat":{"primary":"quads","tags":[]},"bench":{"primary":"chest","tags":[]},"press":{"primary":"shoulders","tags":[]},"dead":{"primary":"back","tags":[]}},"lapseAfterDays":21,"tracked":[{"s":"any"}]}}},
+{"op":"issue.sinkField","args":[{"k":"fixed","v":{"b":"exact","v":8}},"reps",{"reps":1}],"world":{},"expected":{"ret":{"k":"fixed","v":{"b":"exact","v":8}}}},
+{"op":"issue.sinkField","args":[{"k":"fixed","v":{"b":"exact","v":100}},"load",{"reps":1}],"world":{},"expected":{"ret":{"k":"fixed","v":{"b":"exact","v":100}}}}
+]}

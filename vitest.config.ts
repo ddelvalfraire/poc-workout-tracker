@@ -43,6 +43,9 @@ export default defineConfig({
             'e2e/**/*.spec.ts',
             '.claude/**',
             '**/*.stories.tsx',
+            // The archived training-algebra oracle runs its own suites via
+            // its verify.sh, not Vitest.
+            'docs/spec/training-algebra/**',
           ],
         },
       },

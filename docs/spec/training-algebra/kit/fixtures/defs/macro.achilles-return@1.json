@@ -1,0 +1,100 @@
+{
+ "kind": "macro",
+ "ref": {
+  "id": "macro/achilles-return",
+  "version": 1
+ },
+ "says": "Achilles return: isometrics until morning pain settles (no earlier than two weeks after the start), then pain-monitored loading",
+ "anchor": {
+  "k": "startOn",
+  "date": "2026-09-14"
+ },
+ "drift": "slide",
+ "phases": [
+  {
+   "label": "Pain modulation",
+   "program": {
+    "id": "prog/achilles-isometric",
+    "version": 1
+   },
+   "length": {
+    "k": "bounded",
+    "min": 2,
+    "max": 6,
+    "advanceWhen": {
+     "k": "logic",
+     "op": "and",
+     "a": {
+      "k": "orElse",
+      "a": {
+       "k": "known",
+       "a": {
+        "k": "fact",
+        "fact": "morningPain",
+        "key": null
+       },
+       "as": "v7",
+       "body": {
+        "k": "cmp",
+        "op": "<=",
+        "a": {
+         "k": "var",
+         "name": "v7"
+        },
+        "b": {
+         "k": "lit",
+         "lit": {
+          "k": "ord",
+          "scale": "pain",
+          "level": 2
+         }
+        }
+       },
+       "then": false
+      },
+      "b": {
+       "k": "lit",
+       "lit": {
+        "k": "bool",
+        "v": false
+       }
+      }
+     },
+     "b": {
+      "k": "cmp",
+      "op": ">=",
+      "a": {
+       "k": "cal",
+       "q": {
+        "q": "day"
+       }
+      },
+      "b": {
+       "k": "lit",
+       "lit": {
+        "k": "q",
+        "v": 14,
+        "unit": "d"
+       }
+      }
+     }
+    },
+    "atMax": "propose"
+   },
+   "args": {},
+   "transform": null
+  },
+  {
+   "label": "Progressive loading",
+   "program": {
+    "id": "prog/achilles-loading",
+    "version": 1
+   },
+   "length": {
+    "k": "open"
+   },
+   "args": {},
+   "transform": null
+  }
+ ]
+}

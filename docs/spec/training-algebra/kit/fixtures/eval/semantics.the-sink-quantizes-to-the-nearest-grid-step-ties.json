@@ -1,0 +1,5 @@
+{"source": {"suite":"semantics","test":"the sink quantizes to the nearest grid step, ties DOWN, in canonical units (a 5 lb grid lands on lb)","ids":["BV-26","BV-27","EC-178"]}, "fixtures": [
+{"op":"issue.sinkField","args":[{"k":"fixed","v":{"b":"exact","v":101.25}},"load",{"load":2.5}],"world":{},"expected":{"ret":{"k":"fixed","v":{"b":"exact","v":100}}}},
+{"op":"issue.sinkField","args":[{"k":"fixed","v":{"b":"exact","v":101.3}},"load",{"load":2.5}],"world":{},"expected":{"ret":{"k":"fixed","v":{"b":"exact","v":102.5}}}},
+{"op":"issue.sinkField","args":[{"k":"fixed","v":{"b":"exact","v":65}},"load",{"load":2.2679618500000003}],"world":{},"expected":{"ret":{"k":"fixed","v":{"b":"exact","v":65.77089365}}}}
+]}

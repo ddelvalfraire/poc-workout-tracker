@@ -1,0 +1,3 @@
+{"source": {"suite":"laws","test":"zero judged sets is UNKNOWN, never a vacuous hit","ids":["BV-46"]}, "fixtures": [
+{"op":"judge.verdictOf","args":[{"reg":{"$registry":"reg-d9fdf41e"},"slots":[],"performed":{},"facts":[],"groupScores":{},"week":0,"primary":{"$fn":"arg0.primary"}},"working","floor"],"world":{"arg0.primary":[]},"expected":{"ret":"unknown"}}
+]}

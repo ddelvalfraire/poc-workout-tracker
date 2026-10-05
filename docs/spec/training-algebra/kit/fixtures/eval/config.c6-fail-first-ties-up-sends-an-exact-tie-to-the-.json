@@ -1,0 +1,4 @@
+{"source": {"suite":"config","test":"C6 (fail-first): ties up sends an exact tie to the upper grid step, in the pinned integer formulation, and only ties move","ids":[]}, "fixtures": [
+{"op":"issue.sinkField","args":[{"k":"fixed","v":{"b":"exact","v":101.25}},"load",{"load":2.5},"up"],"world":{},"expected":{"ret":{"k":"fixed","v":{"b":"exact","v":102.5}}}},
+{"op":"issue.sinkField","args":[{"k":"fixed","v":{"b":"atMost","v":101.25}},"load",{"load":2.5},"up"],"world":{},"expected":{"ret":{"k":"fixed","v":{"b":"atMost","v":100}}}}
+]}

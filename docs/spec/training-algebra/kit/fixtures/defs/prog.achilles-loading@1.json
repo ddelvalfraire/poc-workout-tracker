@@ -1,0 +1,84 @@
+{
+ "kind": "program",
+ "ref": {
+  "id": "prog/achilles-loading",
+  "version": 1
+ },
+ "says": "Achilles loading: pain-monitored eccentric heel drops, twice a day",
+ "params": {},
+ "facts": [],
+ "enums": {},
+ "calendar": {
+  "weeks": [
+   "train"
+  ],
+  "repeat": "cycle",
+  "drift": "slide"
+ },
+ "grids": {
+  "load": {
+   "k": "lit",
+   "lit": {
+    "k": "q",
+    "v": 1,
+    "unit": "kg"
+   }
+  }
+ },
+ "muscles": [
+  "calves"
+ ],
+ "slots": {
+  "drops": {
+   "scheme": {
+    "id": "lib/pain-gated-loading",
+    "version": 1
+   },
+   "args": {
+    "lift": {
+     "k": "lit",
+     "lit": {
+      "k": "ref",
+      "kind": "exercise",
+      "id": "heel-drop"
+     }
+    },
+    "inc": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 2.5,
+      "unit": "kg"
+     }
+    }
+   },
+   "meta": {
+    "muscles": {
+     "calves": 1
+    }
+   }
+  }
+ },
+ "days": {
+  "D": [
+   {
+    "k": "single",
+    "slot": "drops"
+   }
+  ]
+ },
+ "rotation": {
+  "k": "daily",
+  "days": [
+   "D"
+  ],
+  "perDay": 2
+ },
+ "frequency": [],
+ "lapseAfterDays": 21,
+ "hitPolicy": "allInOrder",
+ "policies": [],
+ "aggregate": null,
+ "exports": {},
+ "imports": {}
+}

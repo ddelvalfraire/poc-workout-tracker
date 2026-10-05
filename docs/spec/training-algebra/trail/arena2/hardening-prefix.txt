@@ -1,0 +1,41 @@
+  FAIL  obs 1: orElse joins the clocks of its sides, so a calendar value cannot launder into an unclocked quantity
+        orElse(none days, cal.day) used as days: got [], want ["clockMix@"]
+  FAIL  obs 2: a declaration on the calendar clock (state field, param, result) is refused: a calendar value is never stored or passed on
+        calendar state field: got [], want ["clockMix@state.seen.ty"]
+  FAIL  obs 4: an unknown literal kind is unknownName naming that kind (it fell into the var case with name undefined)
+        refusal: got [["unknownName",null]], want [["unknownName","bogus"]]
+  FAIL  obs 5: an unknown unit or per is a refusal, not a thrown exception (literals and threshold rows)
+        Cannot read properties of undefined (reading 'dim')
+  FAIL  obs 6: ref literals name something the program declares, and exercise-keyed rows name a registered exercise
+        muscle: got [], want ["unknownName@"]
+  FAIL  obs 7: a keyed fact whose key is refused reports only the key refusal (no spurious missingArg)
+        refused key: got ["unknownName","missingArg"], want ["unknownName"]
+  FAIL  obs 9 and 10: pos fields and keys collections are validated (an unknown one typed as weeks or muscles)
+        pos: got [], want ["unknownName@"]
+  FAIL  obs 11: ordinal rows are keyed by level and enum rows by tag, once each
+        null level: got [], want ["tableShape"]
+  FAIL  obs 12: a threshold row is a literal, so a rate per day is clockRate there too
+        rate row: got [], want ["clockRate@rows.0.when"]
+  FAIL  obs 13: agg weekly by tag names a tag the program declares
+        unknown tag: got [], want ["unknownName@"]
+  FAIL  obs 14 and 15: refusals point at real nodes (an until condition at count.stop; metricNotLogged at a non-literal target)
+        until: got ["unitMismatch@steps.0.count"], want ["unitMismatch@steps.0.count.stop"]
+  FAIL  obs 16 and 17: an unknown transformer, a technique with no stages, and a negative tempo are refused
+        xform: got [], want ["unknownName@"]
+  FAIL  obs 20: an optional value where a plain one is wanted is absenceUnhandled everywhere (top, ratio, round)
+        top: got ["unitMismatch"], want ["absenceUnhandled"]
+  FAIL  obs 23: a group member whose set JSON omits rest does not prescribe rest
+        omitted rest is no rest: got ["restOwnedByGroup"], want []
+  FAIL  obs 24: an example or handoff argument naming no parameter is unknownName
+        example arg: got [], want ["unknownName@examples.0.args.bogus"]
+  FAIL  obs 26: imports and macro phases may name only programs published before them (futureRef)
+        import: 
+  FAIL  obs 27: frequency counts are literal positive integers
+        atLeast 0: 
+  FAIL  obs 29: a handler key that is not an event is unknownName
+        slot: notWritableHere@on.bogus.cases.hit.a.set.week,notWritableHere@on.bogus.cases.hit.a.set.done,notWritableHere@on.bogus.cases.hit.b.set.done
+  FAIL  obs 30: a program-scope peer read of the previous phase resolves nothing (only a macro handoff has one)
+        prevPhase: 
+  FAIL  obs 31: a non-empty list fits where a possibly-empty one is wanted, and not the reverse
+        literal among: got ["unitMismatch@among"], want []
+hardening: 0 passed, 20 failed

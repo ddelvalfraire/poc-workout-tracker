@@ -1,0 +1,377 @@
+{
+ "entries": [
+  {
+   "$def": "lib/load-for@1"
+  },
+  {
+   "$def": "lib/juggernaut-bump@1"
+  },
+  {
+   "$def": "lib/juggernaut-realization@1"
+  },
+  {
+   "$def": "lib/apre-adjust@1"
+  },
+  {
+   "$def": "lib/rp-set-delta@1"
+  },
+  {
+   "$def": "lib/sfr-score@1"
+  },
+  {
+   "$def": "lib/deload@1"
+  },
+  {
+   "$def": "lib/with-tempo@1"
+  },
+  {
+   "$def": "lib/linear-gated@1"
+  },
+  {
+   "$def": "prog/linear-3x5@1"
+  },
+  {
+   "$def": "prog/mixed-units@1"
+  },
+  {
+   "$def": "lib/apre-6rm@1"
+  },
+  {
+   "$def": "lib/531@1"
+  },
+  {
+   "$def": "lib/bbb@1"
+  },
+  {
+   "$def": "prog/531-bbb@1"
+  },
+  {
+   "$def": "lib/gzclp-t1@1"
+  },
+  {
+   "$def": "lib/gzclp-t1@2"
+  },
+  {
+   "$def": "prog/gzclp-t1@1"
+  },
+  {
+   "$def": "prog/gzclp-t1@2"
+  },
+  {
+   "$def": "lib/rp-slot@1"
+  },
+  {
+   "$def": "lib/rp-weekly-target@1"
+  },
+  {
+   "$def": "lib/sfr-or-neutral@1"
+  },
+  {
+   "$def": "prog/rp-upper-meso@1"
+  },
+  {
+   "$def": "lib/stab-ladder@1"
+  },
+  {
+   "$def": "lib/double-progression@1"
+  },
+  {
+   "$def": "lib/double-progression@2"
+  },
+  {
+   "$def": "lib/fixed-work@1"
+  },
+  {
+   "$def": "lib/rep-shape@1"
+  },
+  {
+   "$def": "prog/opt-stabilization@1"
+  },
+  {
+   "$def": "prog/opt-strength-endurance@1"
+  },
+  {
+   "$def": "prog/opt-strength-endurance@2"
+  },
+  {
+   "$def": "prog/opt-loaded@1"
+  },
+  {
+   "$def": "prog/opt-loaded@2"
+  },
+  {
+   "$def": "prog/opt-power@1"
+  },
+  {
+   "$def": "prog/opt-power@2"
+  },
+  {
+   "$def": "macro/opt-16wk@1"
+  },
+  {
+   "$def": "macro/opt-16wk@2"
+  },
+  {
+   "$def": "lib/531-jokers@1"
+  },
+  {
+   "$def": "lib/531-jokers@2"
+  },
+  {
+   "$def": "lib/rest-pause-dc@1"
+  },
+  {
+   "$def": "lib/cluster-strength@1"
+  },
+  {
+   "$def": "prog/upper-hypertrophy-dc@1"
+  },
+  {
+   "$def": "prog/legs-3x@1"
+  },
+  {
+   "$def": "prog/legs-3x@2"
+  },
+  {
+   "$def": "lib/c25k@1"
+  },
+  {
+   "$def": "prog/c25k@1"
+  },
+  {
+   "$def": "lib/hr-tempo@1"
+  },
+  {
+   "$def": "lib/hr-tempo@2"
+  },
+  {
+   "$def": "lib/easy-run@1"
+  },
+  {
+   "$def": "prog/hr-tempo-block@1"
+  },
+  {
+   "$def": "prog/hr-tempo-block@2"
+  },
+  {
+   "$def": "lib/iso-hold@1"
+  },
+  {
+   "$def": "lib/pain-gated-loading@1"
+  },
+  {
+   "$def": "lib/pain-gated-loading@2"
+  },
+  {
+   "$def": "prog/achilles-isometric@1"
+  },
+  {
+   "$def": "prog/achilles-loading@1"
+  },
+  {
+   "$def": "prog/achilles-loading@2"
+  },
+  {
+   "$def": "macro/achilles-return@1"
+  },
+  {
+   "$def": "macro/achilles-return@2"
+  },
+  {
+   "kind": "scheme",
+   "ref": {
+    "id": "lib/ufx-allsets-read",
+    "version": 1
+   },
+   "says": "counts hits and strict misses on {lift}",
+   "params": {
+    "lift": {
+     "t": "ref",
+     "kind": "exercise",
+     "logging": [
+      "bodyweight_reps"
+     ]
+    }
+   },
+   "facts": [],
+   "enums": {},
+   "state": {
+    "misses": {
+     "ty": {
+      "t": "q",
+      "dim": {}
+     },
+     "init": {
+      "k": "lit",
+      "lit": {
+       "k": "q",
+       "v": 0,
+       "unit": "x"
+      }
+     },
+     "writableBy": [
+      "session"
+     ],
+     "noun": "misses"
+    },
+    "hits": {
+     "ty": {
+      "t": "q",
+      "dim": {}
+     },
+     "init": {
+      "k": "lit",
+      "lit": {
+       "k": "q",
+       "v": 0,
+       "unit": "x"
+      }
+     },
+     "writableBy": [
+      "session"
+     ],
+     "noun": "hits"
+    }
+   },
+   "plan": {
+    "k": "session",
+    "exercise": {
+     "k": "param",
+     "name": "lift"
+    },
+    "steps": [
+     {
+      "k": "step",
+      "id": "w",
+      "count": {
+       "k": "n",
+       "n": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 3,
+         "unit": "set"
+        }
+       }
+      },
+      "target": {
+       "k": "set",
+       "role": "working",
+       "target": {
+        "reps": {
+         "b": "exact",
+         "v": {
+          "k": "lit",
+          "lit": {
+           "k": "q",
+           "v": 10,
+           "unit": "rep"
+          }
+         }
+        }
+       },
+       "rest": null,
+       "tempo": null,
+       "cluster": null
+      }
+     }
+    ],
+    "intensifier": null
+   },
+   "on": {
+    "session": {
+     "k": "patch",
+     "set": {
+      "hits": {
+       "to": {
+        "k": "match",
+        "on": {
+         "k": "event",
+         "q": {
+          "q": "verdict",
+          "steps": "working",
+          "bound": "floor"
+         }
+        },
+        "cases": {
+         "hit": {
+          "k": "arith",
+          "op": "+",
+          "a": {
+           "k": "self",
+           "field": "hits"
+          },
+          "b": {
+           "k": "lit",
+           "lit": {
+            "k": "q",
+            "v": 1,
+            "unit": "x"
+           }
+          }
+         },
+         "missed": {
+          "k": "self",
+          "field": "hits"
+         },
+         "unknown": {
+          "k": "self",
+          "field": "hits"
+         }
+        }
+       },
+       "mode": "commit"
+      },
+      "misses": {
+       "to": {
+        "k": "match",
+        "on": {
+         "k": "event",
+         "q": {
+          "q": "verdict",
+          "steps": "working",
+          "bound": "floor",
+          "success": "allSets"
+         }
+        },
+        "cases": {
+         "hit": {
+          "k": "lit",
+          "lit": {
+           "k": "q",
+           "v": 0,
+           "unit": "x"
+          }
+         },
+         "missed": {
+          "k": "arith",
+          "op": "+",
+          "a": {
+           "k": "self",
+           "field": "misses"
+          },
+          "b": {
+           "k": "lit",
+           "lit": {
+            "k": "q",
+            "v": 1,
+            "unit": "x"
+           }
+          }
+         },
+         "unknown": {
+          "k": "self",
+          "field": "misses"
+         }
+        }
+       },
+       "mode": "commit"
+      }
+     }
+    }
+   },
+   "examples": []
+  }
+ ],
+ "vocab": "base"
+}

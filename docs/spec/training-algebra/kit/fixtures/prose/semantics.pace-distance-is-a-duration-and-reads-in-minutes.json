@@ -1,0 +1,4 @@
+{"source": {"suite":"semantics","test":"pace × distance is a duration and reads in minutes (4:45 per km over 5 km is 23:45 min), not 1425 s","ids":["R2-carried"]}, "fixtures": [
+{"op":"describe-run.valueText","args":[{"v":"q","n":1424.9999999999998,"dim":{"time":1},"unit":"min"},{"$registry":"reg-d9fdf41e"}],"world":{},"expected":{"ret":"23:45 min"},"locale":"en-GB (oracle)"},
+{"op":"describe-run.valueText","args":[{"v":"q","n":28.499999999999996,"dim":{"time":1},"unit":"s"},{"$registry":"reg-d9fdf41e"}],"world":{},"expected":{"ret":"28.5 s"},"locale":"en-GB (oracle)"}
+]}

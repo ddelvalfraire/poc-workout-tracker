@@ -277,6 +277,9 @@ const eslintConfig = defineConfig([
     // Scoped to skills/, not all of .agents/: anything WE write there later
     // is first-party and must stay linted.
     ".agents/skills/**",
+    // The training-algebra oracle is an archived spec with its own strict
+    // tsconfig and verify.sh; it is not app code and never reaches the bundle.
+    "docs/spec/training-algebra/**",
   ]),
   {
     files: ["src/**/*.{ts,tsx}"],

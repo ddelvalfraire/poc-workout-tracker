@@ -1,0 +1,204 @@
+{
+ "kind": "fn",
+ "ref": {
+  "id": "lib/rp-set-delta",
+  "version": 1
+ },
+ "params": {
+  "soreness": {
+   "t": "ord",
+   "scale": "soreness"
+  },
+  "pump": {
+   "t": "ord",
+   "scale": "pump"
+  }
+ },
+ "result": {
+  "t": "q",
+  "dim": {
+   "set": 1
+  }
+ },
+ "says": "the sets to add next week given {soreness} and {pump}",
+ "enums": {},
+ "examples": [
+  {
+   "args": {
+    "soreness": {
+     "k": "lit",
+     "lit": {
+      "k": "ord",
+      "scale": "soreness",
+      "level": 0
+     }
+    },
+    "pump": {
+     "k": "lit",
+     "lit": {
+      "k": "ord",
+      "scale": "pump",
+      "level": 1
+     }
+    }
+   },
+   "gives": {
+    "k": "lit",
+    "lit": {
+     "k": "q",
+     "v": 2,
+     "unit": "set"
+    }
+   }
+  }
+ ],
+ "body": {
+  "k": "table",
+  "key": {
+   "k": "param",
+   "name": "soreness"
+  },
+  "rows": [
+   {
+    "when": 0,
+    "then": {
+     "k": "table",
+     "key": {
+      "k": "param",
+      "name": "pump"
+     },
+     "rows": [
+      {
+       "when": 0,
+       "then": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 2,
+         "unit": "set"
+        }
+       }
+      },
+      {
+       "when": 1,
+       "then": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 2,
+         "unit": "set"
+        }
+       }
+      },
+      {
+       "when": 2,
+       "then": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 1,
+         "unit": "set"
+        }
+       }
+      },
+      {
+       "when": 3,
+       "then": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 1,
+         "unit": "set"
+        }
+       }
+      }
+     ],
+     "otherwise": null,
+     "overflow": null
+    }
+   },
+   {
+    "when": 1,
+    "then": {
+     "k": "table",
+     "key": {
+      "k": "param",
+      "name": "pump"
+     },
+     "rows": [
+      {
+       "when": 0,
+       "then": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 1,
+         "unit": "set"
+        }
+       }
+      },
+      {
+       "when": 1,
+       "then": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 1,
+         "unit": "set"
+        }
+       }
+      },
+      {
+       "when": 2,
+       "then": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 1,
+         "unit": "set"
+        }
+       }
+      },
+      {
+       "when": 3,
+       "then": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 0,
+         "unit": "set"
+        }
+       }
+      }
+     ],
+     "otherwise": null,
+     "overflow": null
+    }
+   },
+   {
+    "when": 2,
+    "then": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 0,
+      "unit": "set"
+     }
+    }
+   },
+   {
+    "when": 3,
+    "then": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 0,
+      "unit": "set"
+     }
+    }
+   }
+  ],
+  "otherwise": null,
+  "overflow": null
+ }
+}

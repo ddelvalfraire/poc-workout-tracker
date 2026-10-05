@@ -1,0 +1,95 @@
+{
+ "kind": "program",
+ "ref": {
+  "id": "prog/c25k",
+  "version": 1
+ },
+ "says": "Couch to 5K: three runs a week with a rest day between, progressing by completed sessions, not by the calendar",
+ "params": {},
+ "facts": [],
+ "enums": {},
+ "calendar": {
+  "weeks": [
+   "train"
+  ],
+  "repeat": "cycle",
+  "drift": "slide"
+ },
+ "grids": {},
+ "muscles": [
+  "legs"
+ ],
+ "slots": {
+  "run": {
+   "scheme": {
+    "id": "lib/c25k",
+    "version": 1
+   },
+   "args": {},
+   "meta": {
+    "muscles": {
+     "legs": 1
+    }
+   }
+  }
+ },
+ "days": {
+  "R": [
+   {
+    "k": "single",
+    "slot": "run"
+   }
+  ]
+ },
+ "rotation": {
+  "k": "weekly",
+  "days": [
+   "R",
+   "R",
+   "R"
+  ]
+ },
+ "frequency": [
+  {
+   "k": "atLeast",
+   "n": 3,
+   "of": {
+    "s": "any"
+   },
+   "per": {
+    "k": "week"
+   }
+  },
+  {
+   "k": "minGap",
+   "of": {
+    "s": "any"
+   },
+   "gap": {
+    "k": "lit",
+    "lit": {
+     "k": "q",
+     "v": 2,
+     "unit": "d"
+    }
+   },
+   "ceiling": 2
+  }
+ ],
+ "lapseAfterDays": 21,
+ "hitPolicy": "allInOrder",
+ "policies": [],
+ "aggregate": null,
+ "exports": {
+  "weekReached": {
+   "k": "slotState",
+   "slot": "run",
+   "field": "week",
+   "ty": {
+    "t": "q",
+    "dim": {}
+   }
+  }
+ },
+ "imports": {}
+}

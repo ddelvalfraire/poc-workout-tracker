@@ -1,0 +1,6 @@
+{"source": {"suite":"semantics","test":"the sink: an effort below zero (rpe 11) is silent outOfDomain; a negative or non-finite load too; 0 kg is a legal load","ids":["BV-54","EC-32"]}, "fixtures": [
+{"op":"issue.sinkField","args":[{"k":"fixed","v":{"b":"exact","v":-1}},"effort",{}],"world":{},"expected":{"ret":{"k":"silent","cause":{"k":"outOfDomain","field":"effort","value":-1}}}},
+{"op":"issue.sinkField","args":[{"k":"fixed","v":{"b":"exact","v":-4.5}},"load",{}],"world":{},"expected":{"ret":{"k":"silent","cause":{"k":"outOfDomain","field":"load","value":-4.5}}}},
+{"op":"issue.sinkField","args":[{"k":"fixed","v":{"b":"exact","v":{"$num":"Infinity"}}},"reps",{}],"world":{},"expected":{"ret":{"k":"silent","cause":{"k":"outOfDomain","field":"reps","value":{"$num":"Infinity"}}}}},
+{"op":"issue.sinkField","args":[{"k":"fixed","v":{"b":"exact","v":0}},"load",{}],"world":{},"expected":{"ret":{"k":"fixed","v":{"b":"exact","v":0}}}}
+]}

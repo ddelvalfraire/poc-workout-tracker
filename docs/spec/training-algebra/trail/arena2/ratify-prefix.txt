@@ -1,0 +1,32 @@
+# Pre-fix run of the ratification-round tests against the frozen oracle (synthesis-hardened sources; only the test files differ)
+  FAIL  round: nearest ties go DOWN (the one quantization law); down and up modes; the OPT handoff 101 kg × 115% lands on 115 kg
+        tie down: got 102.5, want 100
+  FAIL  ONE quantization law: round(nearest) and the sink agree at every exact tie, and the pinned formulation decides the boundary
+        101.25 on a 2.5 grid: both 100: got [102.5,100], want [100,100]
+semantics: 42 passed, 2 failed
+  FAIL  accepting re-checks writability: a proposal whose field its proposer may no longer write expires unapplied, with the reason recorded; an owner-writable field stays acceptable
+        never applied: the load is unchanged
+  FAIL  RP: the weekly gap buys WEEKLY sets: after allocation a muscle’s issued week equals its target, even when the cable fly (trained twice a week) wins
+        chest sets issued across week 1: got 16, want 12
+  FAIL  every allocation candidate of a worked program is trained once a week, so a per-slot extra is a weekly set
+        prog/rp-upper-meso chest: got ["cableFly",2], want ["cableFly",1]
+laws: 65 passed, 3 failed
+hardened sink 40.5+3e-10: 100  40.5+8e-10: 100  40.5-8e-10: 100
+hardened round 40.5+3e-10: 102.5  7.5 reps: 8  -101.25: -100
+# Final fail-first run: synthesis-hardened sources with this round's laws.test.ts and semantics.test.ts
+  FAIL  round: nearest ties go DOWN (the one quantization law); down and up modes; the OPT handoff 101 kg × 115% lands on 115 kg
+        tie down: got 102.5, want 100
+  FAIL  ONE quantization law: round(nearest) and the sink agree at every exact tie, and the pinned formulation decides the boundary
+        101.25 on a 2.5 grid: both 100: got [102.5,100], want [100,100]
+  FAIL  tabulate over the program’s slots (declaration order) is a map; at reads a key, absent on a missing one
+        declaration order: got ["flatDb","inclineDb","cableFly","row","pulldown"], want ["flatDb","inclineDb","cableFlyA","cableFlyB","row","pulldown"]
+semantics: 41 passed, 3 failed
+  FAIL  5/3/1 over a cycle: week 0 5×65/75/85%, week 2 5/3/1 at 75/85/95%, the deload 40/50/60% with BBB at 3 sets, and week 4 issued on the post-cycleEnd TM
+        (0 , import_units.nearestStep) is not a function
+  FAIL  accepting re-checks writability: a proposal whose field its proposer may no longer write expires unapplied, with the reason recorded; an owner-writable field stays acceptable
+        never applied: the load is unchanged
+  FAIL  RP: the weekly gap buys WEEKLY sets: after allocation a muscle’s issued week equals its target, even when the cable fly (trained twice a week) wins
+        chest sets issued across week 1: got 16, want 12
+  FAIL  every allocation candidate of a worked program is trained once a week, so a per-slot extra is a weekly set
+        prog/rp-upper-meso chest: got ["cableFly",2], want ["cableFly",1]
+laws: 64 passed, 4 failed

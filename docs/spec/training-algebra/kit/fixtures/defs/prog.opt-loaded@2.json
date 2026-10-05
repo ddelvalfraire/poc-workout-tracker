@@ -1,0 +1,110 @@
+{
+ "kind": "program",
+ "ref": {
+  "id": "prog/opt-loaded",
+  "version": 2
+ },
+ "says": "OPT loaded phase: one main lift per session, character set by the phase",
+ "params": {
+  "benchStart": {
+   "t": "opt",
+   "of": {
+    "t": "q",
+    "dim": {
+     "mass": 1
+    }
+   }
+  }
+ },
+ "facts": [],
+ "enums": {},
+ "calendar": {
+  "weeks": [
+   "train",
+   "train",
+   "train",
+   "train"
+  ],
+  "repeat": "once",
+  "drift": "slide"
+ },
+ "grids": {
+  "load": {
+   "k": "lit",
+   "lit": {
+    "k": "q",
+    "v": 2.5,
+    "unit": "kg"
+   }
+  }
+ },
+ "muscles": [
+  "chest"
+ ],
+ "slots": {
+  "bench": {
+   "scheme": {
+    "id": "lib/double-progression",
+    "version": 2
+   },
+   "args": {
+    "lift": {
+     "k": "lit",
+     "lit": {
+      "k": "ref",
+      "kind": "exercise",
+      "id": "wger:192"
+     }
+    },
+    "sets": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 4,
+      "unit": "set"
+     }
+    },
+    "inc": {
+     "k": "lit",
+     "lit": {
+      "k": "q",
+      "v": 2.5,
+      "unit": "kg"
+     }
+    },
+    "start": {
+     "k": "param",
+     "name": "benchStart"
+    }
+   },
+   "meta": {
+    "muscles": {
+     "chest": 1
+    }
+   }
+  }
+ },
+ "days": {
+  "A": [
+   {
+    "k": "single",
+    "slot": "bench"
+   }
+  ]
+ },
+ "rotation": {
+  "k": "weekly",
+  "days": [
+   "A",
+   "A",
+   "A"
+  ]
+ },
+ "frequency": [],
+ "lapseAfterDays": 21,
+ "hitPolicy": "allInOrder",
+ "policies": [],
+ "aggregate": null,
+ "exports": {},
+ "imports": {}
+}

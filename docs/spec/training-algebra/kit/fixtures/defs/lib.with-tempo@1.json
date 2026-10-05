@@ -1,0 +1,153 @@
+{
+ "kind": "fn",
+ "ref": {
+  "id": "lib/with-tempo",
+  "version": 1
+ },
+ "params": {
+  "s": {
+   "t": "dom",
+   "sort": "session"
+  },
+  "t": {
+   "t": "dom",
+   "sort": "tempo"
+  }
+ },
+ "result": {
+  "t": "dom",
+  "sort": "session"
+ },
+ "says": "{s}, every rep at tempo {t}",
+ "enums": {},
+ "examples": [
+  {
+   "args": {
+    "s": {
+     "k": "session",
+     "exercise": {
+      "k": "lit",
+      "lit": {
+       "k": "ref",
+       "kind": "exercise",
+       "id": "ex:demo"
+      }
+     },
+     "steps": [
+      {
+       "k": "step",
+       "id": "w",
+       "count": {
+        "k": "n",
+        "n": {
+         "k": "lit",
+         "lit": {
+          "k": "q",
+          "v": 1,
+          "unit": "set"
+         }
+        }
+       },
+       "target": {
+        "k": "set",
+        "role": "working",
+        "target": {
+         "reps": {
+          "b": "exact",
+          "v": {
+           "k": "lit",
+           "lit": {
+            "k": "q",
+            "v": 5,
+            "unit": "rep"
+           }
+          }
+         }
+        },
+        "rest": null,
+        "tempo": null,
+        "cluster": null
+       }
+      }
+     ],
+     "intensifier": null
+    },
+    "t": {
+     "k": "tempo",
+     "ecc": 4,
+     "pause": 2,
+     "con": 1,
+     "top": 0
+    }
+   },
+   "gives": {
+    "k": "session",
+    "exercise": {
+     "k": "lit",
+     "lit": {
+      "k": "ref",
+      "kind": "exercise",
+      "id": "ex:demo"
+     }
+    },
+    "steps": [
+     {
+      "k": "step",
+      "id": "w",
+      "count": {
+       "k": "n",
+       "n": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 1,
+         "unit": "set"
+        }
+       }
+      },
+      "target": {
+       "k": "set",
+       "role": "working",
+       "target": {
+        "reps": {
+         "b": "exact",
+         "v": {
+          "k": "lit",
+          "lit": {
+           "k": "q",
+           "v": 5,
+           "unit": "rep"
+          }
+         }
+        }
+       },
+       "rest": null,
+       "tempo": {
+        "k": "tempo",
+        "ecc": 4,
+        "pause": 2,
+        "con": 1,
+        "top": 0
+       },
+       "cluster": null
+      }
+     }
+    ],
+    "intensifier": null
+   }
+  }
+ ],
+ "body": {
+  "k": "xform",
+  "op": "setTempo",
+  "s": {
+   "k": "param",
+   "name": "s"
+  },
+  "arg": {
+   "k": "param",
+   "name": "t"
+  },
+  "metric": null
+ }
+}

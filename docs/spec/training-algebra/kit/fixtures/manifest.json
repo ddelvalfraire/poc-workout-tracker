@@ -1,0 +1,28 @@
+{
+ "generatedBy": "synthesis/kit-gen.ts (verify.sh step 8)",
+ "corpusDefs": 59,
+ "registries": 16,
+ "fixtures": {
+  "eval": 2026,
+  "prose": 622,
+  "refusals": 366
+ },
+ "capPerTestAndOp": {
+  "evaluate.evaluate": 24,
+  "issue.applyUse": 16,
+  "judge.verdictOf": 48
+ },
+ "sampledOut": {
+  "evaluate.evaluate": 1568,
+  "issue.applyUse": 87,
+  "judge.verdictOf": 2304
+ },
+ "duplicatesDropped": 2750,
+ "notExported": {
+  "step.activate: codec: a registry whose definitions and publication order disagree": 6,
+  "step.prescribe: codec: a registry whose definitions and publication order disagree": 4,
+  "issue.resolveLive: codec: a registry whose definitions and publication order disagree": 7,
+  "evaluate.evaluate: a call of arg1.record cannot be encoded: codec: undefined at $": 5,
+  "judge.verdictOf: codec: undefined": 1
+ }
+}

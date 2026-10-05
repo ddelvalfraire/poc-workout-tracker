@@ -1,0 +1,138 @@
+{
+ "entries": [
+  {
+   "kind": "fn",
+   "ref": {
+    "id": "lib/juggernaut-bump",
+    "version": 1
+   },
+   "params": {
+    "amrap": {
+     "t": "q",
+     "dim": {
+      "rep": 1
+     }
+    },
+    "standard": {
+     "t": "q",
+     "dim": {
+      "rep": 1
+     }
+    },
+    "perRep": {
+     "t": "q",
+     "dim": {
+      "mass": 1,
+      "rep": -1
+     }
+    }
+   },
+   "result": {
+    "t": "q",
+    "dim": {
+     "mass": 1
+    }
+   },
+   "says": "{perRep} for every rep past {standard} on the AMRAP set ({amrap})",
+   "enums": {},
+   "examples": [
+    {
+     "args": {
+      "amrap": {
+       "k": "lit",
+       "lit": {
+        "k": "q",
+        "v": 13,
+        "unit": "rep"
+       }
+      },
+      "standard": {
+       "k": "lit",
+       "lit": {
+        "k": "q",
+        "v": 10,
+        "unit": "rep"
+       }
+      },
+      "perRep": {
+       "k": "lit",
+       "lit": {
+        "k": "q",
+        "v": 2.5,
+        "unit": "kg",
+        "per": "rep"
+       }
+      }
+     },
+     "gives": {
+      "k": "lit",
+      "lit": {
+       "k": "q",
+       "v": 7.5,
+       "unit": "kg"
+      }
+     }
+    },
+    {
+     "args": {
+      "amrap": {
+       "k": "lit",
+       "lit": {
+        "k": "q",
+        "v": 8,
+        "unit": "rep"
+       }
+      },
+      "standard": {
+       "k": "lit",
+       "lit": {
+        "k": "q",
+        "v": 10,
+        "unit": "rep"
+       }
+      },
+      "perRep": {
+       "k": "lit",
+       "lit": {
+        "k": "q",
+        "v": 2.5,
+        "unit": "kg",
+        "per": "rep"
+       }
+      }
+     },
+     "gives": {
+      "k": "lit",
+      "lit": {
+       "k": "q",
+       "v": 0,
+       "unit": "kg"
+      }
+     }
+    }
+   ],
+   "body": {
+    "k": "app",
+    "def": {
+     "id": "lib/juggernaut-bump",
+     "version": 1
+    },
+    "args": {
+     "amrap": {
+      "k": "param",
+      "name": "amrap"
+     },
+     "standard": {
+      "k": "param",
+      "name": "standard"
+     },
+     "perRep": {
+      "k": "param",
+      "name": "perRep"
+     }
+    }
+   }
+  }
+ ],
+ "vocab": "base"
+}

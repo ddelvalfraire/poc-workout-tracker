@@ -1,0 +1,761 @@
+{
+ "entries": [
+  {
+   "$def": "lib/load-for@1"
+  },
+  {
+   "$def": "lib/juggernaut-bump@1"
+  },
+  {
+   "$def": "lib/juggernaut-realization@1"
+  },
+  {
+   "$def": "lib/apre-adjust@1"
+  },
+  {
+   "$def": "lib/rp-set-delta@1"
+  },
+  {
+   "$def": "lib/sfr-score@1"
+  },
+  {
+   "$def": "lib/deload@1"
+  },
+  {
+   "$def": "lib/with-tempo@1"
+  },
+  {
+   "$def": "lib/linear-gated@1"
+  },
+  {
+   "$def": "prog/linear-3x5@1"
+  },
+  {
+   "$def": "prog/mixed-units@1"
+  },
+  {
+   "$def": "lib/apre-6rm@1"
+  },
+  {
+   "$def": "lib/531@1"
+  },
+  {
+   "$def": "lib/bbb@1"
+  },
+  {
+   "$def": "prog/531-bbb@1"
+  },
+  {
+   "$def": "lib/gzclp-t1@1"
+  },
+  {
+   "$def": "lib/gzclp-t1@2"
+  },
+  {
+   "$def": "prog/gzclp-t1@1"
+  },
+  {
+   "$def": "prog/gzclp-t1@2"
+  },
+  {
+   "$def": "lib/rp-slot@1"
+  },
+  {
+   "$def": "lib/rp-weekly-target@1"
+  },
+  {
+   "$def": "lib/sfr-or-neutral@1"
+  },
+  {
+   "$def": "prog/rp-upper-meso@1"
+  },
+  {
+   "$def": "lib/stab-ladder@1"
+  },
+  {
+   "$def": "lib/double-progression@1"
+  },
+  {
+   "$def": "lib/double-progression@2"
+  },
+  {
+   "$def": "lib/fixed-work@1"
+  },
+  {
+   "$def": "lib/rep-shape@1"
+  },
+  {
+   "$def": "prog/opt-stabilization@1"
+  },
+  {
+   "$def": "prog/opt-strength-endurance@1"
+  },
+  {
+   "$def": "prog/opt-strength-endurance@2"
+  },
+  {
+   "$def": "prog/opt-loaded@1"
+  },
+  {
+   "$def": "prog/opt-loaded@2"
+  },
+  {
+   "$def": "prog/opt-power@1"
+  },
+  {
+   "$def": "prog/opt-power@2"
+  },
+  {
+   "$def": "macro/opt-16wk@1"
+  },
+  {
+   "$def": "macro/opt-16wk@2"
+  },
+  {
+   "$def": "lib/531-jokers@1"
+  },
+  {
+   "$def": "lib/531-jokers@2"
+  },
+  {
+   "$def": "lib/rest-pause-dc@1"
+  },
+  {
+   "$def": "lib/cluster-strength@1"
+  },
+  {
+   "$def": "prog/upper-hypertrophy-dc@1"
+  },
+  {
+   "$def": "prog/legs-3x@1"
+  },
+  {
+   "$def": "prog/legs-3x@2"
+  },
+  {
+   "$def": "lib/c25k@1"
+  },
+  {
+   "$def": "prog/c25k@1"
+  },
+  {
+   "$def": "lib/hr-tempo@1"
+  },
+  {
+   "$def": "lib/hr-tempo@2"
+  },
+  {
+   "$def": "lib/easy-run@1"
+  },
+  {
+   "$def": "prog/hr-tempo-block@1"
+  },
+  {
+   "$def": "prog/hr-tempo-block@2"
+  },
+  {
+   "$def": "lib/iso-hold@1"
+  },
+  {
+   "$def": "lib/pain-gated-loading@1"
+  },
+  {
+   "$def": "lib/pain-gated-loading@2"
+  },
+  {
+   "$def": "prog/achilles-isometric@1"
+  },
+  {
+   "$def": "prog/achilles-loading@1"
+  },
+  {
+   "$def": "prog/achilles-loading@2"
+  },
+  {
+   "$def": "macro/achilles-return@1"
+  },
+  {
+   "$def": "macro/achilles-return@2"
+  }
+ ],
+ "vocab": {
+  "metrics": {
+   "reps": {
+    "dim": "reps",
+    "shapes": [
+     "exact",
+     "range",
+     "atLeast",
+     "atMost",
+     "open"
+    ],
+    "loggedBy": {
+     "weight_reps": "plain",
+     "bodyweight_reps": "plain",
+     "weighted_bodyweight": "plain",
+     "assisted_bodyweight": "plain",
+     "rom_reps": "plain"
+    },
+    "better": "higher",
+    "noun": "reps",
+    "lead": "",
+    "open": "however many reps"
+   },
+   "load": {
+    "dim": "mass",
+    "shapes": [
+     "exact",
+     "range",
+     "atMost",
+     "open"
+    ],
+    "loggedBy": {
+     "weight_reps": "external",
+     "weighted_bodyweight": "bodyweightPlus",
+     "assisted_bodyweight": "assisted"
+    },
+    "better": "higher",
+    "noun": "load",
+    "lead": "at",
+    "open": "at a load you choose"
+   },
+   "effort": {
+    "dim": "effort",
+    "shapes": [
+     "exact",
+     "range",
+     "atLeast"
+    ],
+    "loggedBy": {
+     "weight_reps": "plain",
+     "bodyweight_reps": "plain",
+     "weighted_bodyweight": "plain",
+     "assisted_bodyweight": "plain"
+    },
+    "better": "higher",
+    "noun": "reps in reserve",
+    "lead": "with",
+    "open": "at any effort"
+   },
+   "duration": {
+    "dim": "time",
+    "shapes": [
+     "exact",
+     "range",
+     "atLeast",
+     "atMost",
+     "open"
+    ],
+    "loggedBy": {
+     "timed": "plain",
+     "cardio": "plain"
+    },
+    "better": "higher",
+    "noun": "time",
+    "lead": "",
+    "open": "timed"
+   },
+   "distance": {
+    "dim": "length",
+    "shapes": [
+     "exact",
+     "range",
+     "atLeast",
+     "open"
+    ],
+    "loggedBy": {
+     "cardio": "plain"
+    },
+    "better": "higher",
+    "noun": "distance",
+    "lead": "",
+    "open": "whatever distance it takes"
+   },
+   "pace": {
+    "dim": "pace",
+    "shapes": [
+     "exact",
+     "range",
+     "atMost",
+     "atLeast",
+     "open"
+    ],
+    "loggedBy": {
+     "cardio": "plain"
+    },
+    "better": "lower",
+    "noun": "pace",
+    "lead": "at",
+    "open": "at any pace"
+   },
+   "hr": {
+    "dim": "heartRate",
+    "shapes": [
+     "range",
+     "atMost",
+     "atLeast",
+     "open"
+    ],
+    "loggedBy": {
+     "cardio": "plain"
+    },
+    "measuredBy": "avgHr",
+    "better": "lower",
+    "noun": "heart rate",
+    "lead": "keeping heart rate",
+    "open": "heart rate recorded"
+   },
+   "rom": {
+    "dim": "angle",
+    "shapes": [
+     "exact",
+     "range",
+     "atMost",
+     "open"
+    ],
+    "loggedBy": {
+     "rom_reps": "plain",
+     "timed": "plain"
+    },
+    "better": "higher",
+    "noun": "range of motion",
+    "lead": "through",
+    "open": "through a comfortable range"
+   },
+   "power": {
+    "dim": "power",
+    "shapes": [
+     "exact",
+     "range",
+     "atLeast",
+     "atMost",
+     "open"
+    ],
+    "loggedBy": {
+     "cardio": "plain"
+    },
+    "better": "higher",
+    "noun": "power",
+    "lead": "at",
+    "open": "power recorded"
+   }
+  },
+  "facts": {
+   "e1rm": {
+    "key": "exercise",
+    "ty": {
+     "t": "q",
+     "dim": {
+      "mass": 1
+     }
+    },
+    "observed": "standing",
+    "maxAgeDays": 56,
+    "grain": {
+     "g": "instant"
+    },
+    "noun": "your estimated max"
+   },
+   "bodyweight": {
+    "key": "none",
+    "ty": {
+     "t": "q",
+     "dim": {
+      "mass": 1
+     }
+    },
+    "observed": "standing",
+    "maxAgeDays": 14,
+    "grain": {
+     "g": "instant"
+    },
+    "noun": "your bodyweight"
+   },
+   "velocity": {
+    "key": "exercise",
+    "ty": {
+     "t": "q",
+     "dim": {
+      "length": 1,
+      "time": -1
+     }
+    },
+    "observed": "duringSession",
+    "maxAgeDays": null,
+    "grain": {
+     "g": "reducer",
+     "reducer": "meanVelocity"
+    },
+    "noun": "your bar speed"
+   },
+   "soreness": {
+    "key": "muscle",
+    "ty": {
+     "t": "ord",
+     "scale": "soreness"
+    },
+    "observed": "preSession",
+    "maxAgeDays": 1,
+    "grain": {
+     "g": "instant"
+    },
+    "noun": "your soreness check-in"
+   },
+   "readiness": {
+    "key": "none",
+    "ty": {
+     "t": "ord",
+     "scale": "readiness"
+    },
+    "observed": "preSession",
+    "maxAgeDays": 1,
+    "grain": {
+     "g": "instant"
+    },
+    "noun": "your readiness check-in"
+   },
+   "pump": {
+    "key": "muscle",
+    "ty": {
+     "t": "ord",
+     "scale": "pump"
+    },
+    "observed": "postSession",
+    "maxAgeDays": null,
+    "grain": {
+     "g": "instant"
+    },
+    "noun": "your pump rating"
+   },
+   "jointPain": {
+    "key": "slot",
+    "ty": {
+     "t": "ord",
+     "scale": "jointPain"
+    },
+    "observed": "postSession",
+    "maxAgeDays": null,
+    "grain": {
+     "g": "instant"
+    },
+    "noun": "your joint-pain rating"
+   },
+   "workload": {
+    "key": "none",
+    "ty": {
+     "t": "ord",
+     "scale": "workload"
+    },
+    "observed": "postSession",
+    "maxAgeDays": null,
+    "grain": {
+     "g": "instant"
+    },
+    "noun": "your workload rating"
+   },
+   "formQuality": {
+    "key": "none",
+    "ty": {
+     "t": "ord",
+     "scale": "formQuality"
+    },
+    "observed": "postSession",
+    "maxAgeDays": null,
+    "grain": {
+     "g": "instant"
+    },
+    "noun": "your form rating"
+   },
+   "pain": {
+    "key": "none",
+    "ty": {
+     "t": "ord",
+     "scale": "pain"
+    },
+    "observed": "postSession",
+    "maxAgeDays": null,
+    "grain": {
+     "g": "instant"
+    },
+    "noun": "the pain you rated during the session"
+   },
+   "morningPain": {
+    "key": "none",
+    "ty": {
+     "t": "ord",
+     "scale": "pain"
+    },
+    "observed": "preSession",
+    "maxAgeDays": 1,
+    "grain": {
+     "g": "instant"
+    },
+    "noun": "your pain rating the morning after the last session"
+   },
+   "borg": {
+    "key": "none",
+    "ty": {
+     "t": "ord",
+     "scale": "borg"
+    },
+    "observed": "postSession",
+    "maxAgeDays": null,
+    "grain": {
+     "g": "instant"
+    },
+    "noun": "your Borg rating of the session"
+   },
+   "dietPhase": {
+    "key": "none",
+    "ty": {
+     "t": "enum",
+     "name": "dietPhase"
+    },
+    "observed": "standing",
+    "maxAgeDays": null,
+    "grain": {
+     "g": "instant"
+    },
+    "noun": "your diet phase"
+   },
+   "ftp": {
+    "key": "none",
+    "ty": {
+     "t": "q",
+     "dim": {
+      "mass": 1,
+      "length": 2,
+      "time": -3
+     }
+    },
+    "observed": "standing",
+    "maxAgeDays": 84,
+    "grain": {
+     "g": "instant"
+    },
+    "noun": "your FTP"
+   },
+   "lthr": {
+    "key": "none",
+    "ty": {
+     "t": "q",
+     "dim": {
+      "beat": 1,
+      "time": -1
+     }
+    },
+    "observed": "standing",
+    "maxAgeDays": 84,
+    "grain": {
+     "g": "instant"
+    },
+    "noun": "your lactate-threshold heart rate"
+   },
+   "cuffPressure": {
+    "key": "none",
+    "ty": {
+     "t": "q",
+     "dim": {
+      "mass": 1,
+      "length": -1,
+      "time": -2
+     }
+    },
+    "observed": "standing",
+    "maxAgeDays": null,
+    "grain": {
+     "g": "instant"
+    },
+    "noun": "your cuff occlusion pressure"
+   },
+   "avgHr": {
+    "key": "none",
+    "ty": {
+     "t": "q",
+     "dim": {
+      "beat": 1,
+      "time": -1
+     }
+    },
+    "observed": "duringSession",
+    "maxAgeDays": null,
+    "grain": {
+     "g": "reducer",
+     "reducer": "avgHr"
+    },
+    "noun": "your average heart rate"
+   },
+   "timeInZone": {
+    "key": "zone",
+    "ty": {
+     "t": "q",
+     "dim": {
+      "time": 1
+     }
+    },
+    "observed": "duringSession",
+    "maxAgeDays": null,
+    "grain": {
+     "g": "reducer",
+     "reducer": "timeInZone"
+    },
+    "noun": "your time in zone"
+   },
+   "hrDrift": {
+    "key": "none",
+    "ty": {
+     "t": "q",
+     "dim": {}
+    },
+    "observed": "duringSession",
+    "maxAgeDays": null,
+    "grain": {
+     "g": "reducer",
+     "reducer": "hrDrift"
+    },
+    "noun": "your heart-rate drift"
+   },
+   "hrv": {
+    "key": "none",
+    "ty": {
+     "t": "q",
+     "dim": {}
+    },
+    "observed": "preSession",
+    "maxAgeDays": 1,
+    "grain": {
+     "g": "instant"
+    },
+    "noun": "your morning HRV score"
+   }
+  },
+  "reducers": {
+   "avgHr": {
+    "series": "hr",
+    "prose": "averaged over the session from your heart-rate recording"
+   },
+   "timeInZone": {
+    "series": "hr",
+    "prose": "summed from your heart-rate recording, per zone"
+   },
+   "hrDrift": {
+    "series": "hr",
+    "prose": "first half against second half of your heart-rate recording"
+   },
+   "meanVelocity": {
+    "series": "barVelocity",
+    "prose": "the mean bar speed per set from your velocity device"
+   }
+  },
+  "exercises": {
+   "wger:111": {
+    "label": "Barbell Back Squat",
+    "logging": "weight_reps"
+   },
+   "wger:192": {
+    "label": "Barbell Bench Press",
+    "logging": "weight_reps"
+   },
+   "wger:105": {
+    "label": "Deadlift",
+    "logging": "weight_reps"
+   },
+   "wger:119": {
+    "label": "Overhead Press",
+    "logging": "weight_reps"
+   },
+   "wger:97": {
+    "label": "Flat DB Press",
+    "logging": "weight_reps"
+   },
+   "wger:314": {
+    "label": "Incline DB Press",
+    "logging": "weight_reps"
+   },
+   "wger:122": {
+    "label": "Cable Fly",
+    "logging": "weight_reps"
+   },
+   "wger:212": {
+    "label": "Chest-Supported Row",
+    "logging": "weight_reps"
+   },
+   "wger:158": {
+    "label": "Lat Pulldown",
+    "logging": "weight_reps"
+   },
+   "wger:507": {
+    "label": "Romanian Deadlift",
+    "logging": "weight_reps"
+   },
+   "wger:hip-thrust": {
+    "label": "Barbell Hip Thrust",
+    "logging": "weight_reps"
+   },
+   "wger:ball-push-up": {
+    "label": "Push-Up, Hands on Stability Ball",
+    "logging": "bodyweight_reps"
+   },
+   "wger:sa-ball-db-press": {
+    "label": "Alternating DB Chest Press on Ball",
+    "logging": "weight_reps"
+   },
+   "wger:sl-cable-press": {
+    "label": "Single-Leg Standing Cable Press",
+    "logging": "weight_reps"
+   },
+   "wger:ball-wall-squat": {
+    "label": "Ball Wall Squat",
+    "logging": "bodyweight_reps"
+   },
+   "wger:sl-squat": {
+    "label": "Single-Leg Squat",
+    "logging": "bodyweight_reps"
+   },
+   "wger:sl-squat-pad": {
+    "label": "Single-Leg Squat on Foam Pad",
+    "logging": "bodyweight_reps"
+   },
+   "wger:mb-chest-pass": {
+    "label": "Medicine Ball Chest Pass",
+    "logging": "bodyweight_reps"
+   },
+   "push-up": {
+    "label": "Push-Up",
+    "logging": "bodyweight_reps"
+   },
+   "burpee": {
+    "label": "Burpee",
+    "logging": "bodyweight_reps"
+   },
+   "plank": {
+    "label": "Plank",
+    "logging": "timed"
+   },
+   "calf-iso": {
+    "label": "Isometric Calf-Raise Hold",
+    "logging": "timed"
+   },
+   "heel-drop": {
+    "label": "Eccentric Heel Drop",
+    "logging": "weighted_bodyweight"
+   },
+   "run": {
+    "label": "Run, with brisk-walk recoveries",
+    "logging": "cardio"
+   },
+   "road-run": {
+    "label": "Road Run",
+    "logging": "cardio"
+   },
+   "indoor-bike": {
+    "label": "Indoor Bike",
+    "logging": "cardio"
+   },
+   "ex:demo": {
+    "label": "Demo",
+    "logging": "weight_reps"
+   }
+  }
+ }
+}

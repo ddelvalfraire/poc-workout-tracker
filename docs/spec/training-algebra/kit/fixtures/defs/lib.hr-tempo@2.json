@@ -1,0 +1,379 @@
+{
+ "kind": "scheme",
+ "ref": {
+  "id": "lib/hr-tempo",
+  "version": 2
+ },
+ "says": "A tempo run on {run}: easy warm-up, then a tempo block at no slower than {pace} with heart rate held at 85–89% of threshold, growing by {grow} each time you hold it without a very hard Borg rating, up to {cap}",
+ "params": {
+  "run": {
+   "t": "ref",
+   "kind": "exercise",
+   "logging": [
+    "cardio"
+   ]
+  },
+  "pace": {
+   "t": "q",
+   "dim": {
+    "time": 1,
+    "length": -1
+   }
+  },
+  "grow": {
+   "t": "q",
+   "dim": {
+    "time": 1
+   }
+  },
+  "cap": {
+   "t": "q",
+   "dim": {
+    "time": 1
+   }
+  },
+  "start": {
+   "t": "q",
+   "dim": {
+    "time": 1
+   }
+  }
+ },
+ "defaults": {
+  "start": {
+   "k": "lit",
+   "lit": {
+    "k": "q",
+    "v": 1200,
+    "unit": "min"
+   }
+  }
+ },
+ "labels": {
+  "start": "starting block"
+ },
+ "facts": [
+  "lthr",
+  "avgHr",
+  "borg"
+ ],
+ "enums": {},
+ "state": {
+  "block": {
+   "ty": {
+    "t": "q",
+    "dim": {
+     "time": 1
+    }
+   },
+   "init": {
+    "k": "param",
+    "name": "start"
+   },
+   "writableBy": [
+    "session",
+    "owner"
+   ],
+   "noun": "tempo block"
+  }
+ },
+ "plan": {
+  "k": "session",
+  "exercise": {
+   "k": "param",
+   "name": "run"
+  },
+  "steps": [
+   {
+    "k": "step",
+    "id": "warmup",
+    "count": {
+     "k": "n",
+     "n": {
+      "k": "lit",
+      "lit": {
+       "k": "q",
+       "v": 1,
+       "unit": "set"
+      }
+     }
+    },
+    "target": {
+     "k": "set",
+     "role": "warmup",
+     "target": {
+      "duration": {
+       "b": "exact",
+       "v": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 900,
+         "unit": "min"
+        }
+       }
+      },
+      "hr": {
+       "b": "atMost",
+       "v": {
+        "k": "known",
+        "a": {
+         "k": "fact",
+         "fact": "lthr",
+         "key": null
+        },
+        "as": "v0",
+        "body": {
+         "k": "arith",
+         "op": "*",
+         "a": {
+          "k": "var",
+          "name": "v0"
+         },
+         "b": {
+          "k": "lit",
+          "lit": {
+           "k": "q",
+           "v": 0.8,
+           "unit": "pct"
+          }
+         }
+        },
+        "then": false
+       }
+      }
+     },
+     "rest": null,
+     "tempo": null,
+     "cluster": null
+    }
+   },
+   {
+    "k": "step",
+    "id": "tempo",
+    "count": {
+     "k": "n",
+     "n": {
+      "k": "lit",
+      "lit": {
+       "k": "q",
+       "v": 1,
+       "unit": "set"
+      }
+     }
+    },
+    "target": {
+     "k": "set",
+     "role": "working",
+     "target": {
+      "duration": {
+       "b": "exact",
+       "v": {
+        "k": "self",
+        "field": "block"
+       }
+      },
+      "pace": {
+       "b": "atMost",
+       "v": {
+        "k": "param",
+        "name": "pace"
+       }
+      },
+      "hr": {
+       "b": "range",
+       "min": {
+        "k": "known",
+        "a": {
+         "k": "fact",
+         "fact": "lthr",
+         "key": null
+        },
+        "as": "v1",
+        "body": {
+         "k": "arith",
+         "op": "*",
+         "a": {
+          "k": "var",
+          "name": "v1"
+         },
+         "b": {
+          "k": "lit",
+          "lit": {
+           "k": "q",
+           "v": 0.85,
+           "unit": "pct"
+          }
+         }
+        },
+        "then": false
+       },
+       "max": {
+        "k": "known",
+        "a": {
+         "k": "fact",
+         "fact": "lthr",
+         "key": null
+        },
+        "as": "v2",
+        "body": {
+         "k": "arith",
+         "op": "*",
+         "a": {
+          "k": "var",
+          "name": "v2"
+         },
+         "b": {
+          "k": "lit",
+          "lit": {
+           "k": "q",
+           "v": 0.89,
+           "unit": "pct"
+          }
+         }
+        },
+        "then": false
+       }
+      }
+     },
+     "rest": null,
+     "tempo": null,
+     "cluster": null
+    }
+   },
+   {
+    "k": "step",
+    "id": "cooldown",
+    "count": {
+     "k": "n",
+     "n": {
+      "k": "lit",
+      "lit": {
+       "k": "q",
+       "v": 1,
+       "unit": "set"
+      }
+     }
+    },
+    "target": {
+     "k": "set",
+     "role": "recovery",
+     "target": {
+      "duration": {
+       "b": "exact",
+       "v": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 600,
+         "unit": "min"
+        }
+       }
+      }
+     },
+     "rest": null,
+     "tempo": null,
+     "cluster": null
+    }
+   }
+  ],
+  "intensifier": null
+ },
+ "on": {
+  "session": {
+   "k": "match",
+   "on": {
+    "k": "event",
+    "q": {
+     "q": "verdict",
+     "steps": [
+      "tempo"
+     ],
+     "bound": "floor"
+    }
+   },
+   "cases": {
+    "hit": {
+     "k": "if",
+     "c": {
+      "k": "orElse",
+      "a": {
+       "k": "known",
+       "a": {
+        "k": "fact",
+        "fact": "borg",
+        "key": null
+       },
+       "as": "v3",
+       "body": {
+        "k": "cmp",
+        "op": "<",
+        "a": {
+         "k": "var",
+         "name": "v3"
+        },
+        "b": {
+         "k": "lit",
+         "lit": {
+          "k": "ord",
+          "scale": "borg",
+          "level": 17
+         }
+        }
+       },
+       "then": false
+      },
+      "b": {
+       "k": "lit",
+       "lit": {
+        "k": "bool",
+        "v": true
+       }
+      }
+     },
+     "a": {
+      "k": "patch",
+      "set": {
+       "block": {
+        "to": {
+         "k": "arith",
+         "op": "min",
+         "a": {
+          "k": "arith",
+          "op": "+",
+          "a": {
+           "k": "self",
+           "field": "block"
+          },
+          "b": {
+           "k": "param",
+           "name": "grow"
+          }
+         },
+         "b": {
+          "k": "param",
+          "name": "cap"
+         }
+        },
+        "mode": "commit"
+       }
+      }
+     },
+     "b": {
+      "k": "patch",
+      "set": {}
+     }
+    },
+    "missed": {
+     "k": "patch",
+     "set": {}
+    },
+    "unknown": {
+     "k": "patch",
+     "set": {}
+    }
+   }
+  }
+ },
+ "examples": []
+}

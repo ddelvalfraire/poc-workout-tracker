@@ -1,0 +1,1 @@
+{"compilerOptions":{"strict":true,"exactOptionalPropertyTypes":true,"noUncheckedIndexedAccess":true,"noUnusedLocals":false,"target":"ES2022","lib":["ES2022","DOM"],"module":"ESNext","moduleResolution":"Bundler","noEmit":true,"skipLibCheck":true,"types":[]},"include":["*.ts"]}
