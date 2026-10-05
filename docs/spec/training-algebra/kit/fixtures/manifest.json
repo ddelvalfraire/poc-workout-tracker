@@ -1,21 +1,23 @@
 {
  "generatedBy": "synthesis/kit-gen.ts (verify.sh step 8)",
- "corpusDefs": 49,
- "registries": 12,
+ "corpusDefs": 59,
+ "registries": 16,
  "fixtures": {
-  "eval": 1844,
-  "prose": 484,
-  "refusals": 351
+  "eval": 2026,
+  "prose": 622,
+  "refusals": 366
  },
  "capPerTestAndOp": {
   "evaluate.evaluate": 24,
-  "issue.applyUse": 16
+  "issue.applyUse": 16,
+  "judge.verdictOf": 48
  },
  "sampledOut": {
-  "evaluate.evaluate": 1496,
-  "issue.applyUse": 87
+  "evaluate.evaluate": 1568,
+  "issue.applyUse": 87,
+  "judge.verdictOf": 2304
  },
- "duplicatesDropped": 2343,
+ "duplicatesDropped": 2750,
  "notExported": {
   "step.activate: codec: a registry whose definitions and publication order disagree": 6,
   "step.prescribe: codec: a registry whose definitions and publication order disagree": 4,

@@ -20,7 +20,7 @@
  * Absence is flattened at runtime (engine.ts Value): `some x` is x.
  */
 import type { BoundIR, DefRef, E1rmFormula, FnDef, StepIR, Term, WeeklyBasis, WeeklyRoles } from './algebra'
-import { E1RM_FORMULAS } from './options'
+import { DEFAULT_E1RM_FORMULA, E1RM_FORMULAS } from './options'
 import { canonicalJson } from './canonical'
 import { enumsWith, keyOf, type Registry } from './checker'
 import type { Absence, Field, Frame, IssuedBound, IssuedStep, IssuedTarget, PerformedSet, SessionValue, Trace, Value } from './engine'
@@ -640,13 +640,15 @@ export function evaluate(t: Term, cx: Ctx): Trace {
       // A defaulted parameter the call omits takes its declared closed value,
       // evaluated in the callee's own context (it reads nothing, C10).
       for (const [k, d] of Object.entries(f.defaults ?? {})) if (!(k in params)) params[k] = evaluate(d, callee).value
-      // Y7: lib/load-for is the engine's inverse-estimator seam. Under a
-      // program that declares a non-Epley formula, the stored Epley body
-      // would disagree with the declared e1RM read, so the engine computes
+      // Y7/Z3: lib/load-for@1 is the engine's inverse-estimator seam — keyed
+      // on id AND version, so a hypothetical @2 runs its own published body.
+      // Under a program that declares a non-Epley formula OR a maxReps cap,
+      // the stored Epley body would disagree with the declared e1RM read
+      // (Epley included: the cap is symmetric, Z3), so the engine computes
       // the DECLARED inverse here (X6's round-trip law for every formula);
       // without a declaration the published body runs unchanged.
-      if (t.def.id === 'lib/load-for' && cx.e1rm && cx.e1rm.formula !== 'epley') {
-        const inv = loadForInverse(cx.e1rm.formula, params)
+      if (t.def.id === 'lib/load-for' && t.def.version === 1 && cx.e1rm && (cx.e1rm.formula !== DEFAULT_E1RM_FORMULA || cx.e1rm.maxReps !== undefined)) {
+        const inv = loadForInverse(cx.e1rm, params)
         return out(inv, { def: t.def, note: `the ${cx.e1rm.formula} inverse (the program's declared estimator)` })
       }
       const body = evaluate(f.body, { ...callee, params })
@@ -825,18 +827,24 @@ export function evaluate(t: Term, cx: Ctx): Trace {
   }
 }
 
-/** The declared inverse (Y7): load = inverse(e1RM, effective reps), with
+/** The declared inverse (Y7/Z3): load = inverse(e1RM, effective reps), with
  *  effective reps = reps + RIR (X6, matching lib/load-for's own shape).
- *  Outside the formula's domain the result is typed absence, exactly as the
- *  forward read is. */
-function loadForInverse(formula: E1rmFormula, params: Record<string, Value>): Value {
+ *  Outside the cap or the domain the result is typed absence, exactly as the
+ *  forward read is — never a number the forward read refuses: the declared
+ *  maxReps binds EVERY formula (Epley included), and zero or negative
+ *  effective reps are absent (the forward read's r ≤ 0 skip; Lombardi's
+ *  inverse would otherwise divide by 0^0.1). */
+function loadForInverse(decl: { formula: E1rmFormula; maxReps?: number }, params: Record<string, Value>): Value {
   const e = params['e1rm']
   const reps = params['reps']
   const rir = params['rir']
   if (!e || e.v !== 'q' || !reps || reps.v !== 'q' || !rir || rir.v !== 'q') throw new Error('evaluate: lib/load-for needs e1rm, reps and rir quantities')
   const r = reps.n + rir.n
+  const { formula, maxReps } = decl
   const f = E1RM_FORMULAS[formula]
+  if (r <= 0) return none({ k: 'outsideFormulaDomain', formula, reps: r })
   if (f.domainMax !== null && r > f.domainMax) return none({ k: 'outsideFormulaDomain', formula, reps: r })
+  if (maxReps !== undefined && r > maxReps) return none({ k: 'outsideFormulaDomain', formula, reps: r, cap: maxReps })
   return qv(f.inverse(e.n, r), DIMS.mass, e.unit)
 }
 

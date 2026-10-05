@@ -126,12 +126,12 @@ t('', 'C1 prose: the verdict read and its match arms state the declared rule; th
   const cx = DS.cxOf(reg)
   eq(DS.describe(aggT({}), cx), 'How the working sets went.', 'default, unchanged')
   eq(DS.describe(aggT({ success: 'totalReps' }), cx), 'How the working sets went (counting total reps across all sets).', 'the read states totalReps')
-  eq(DS.describe(aggT({ success: { atLeastSets: 2 } }), cx), 'How the working sets went (at least 2 sets must fully hit).', 'the read states atLeastSets')
+  eq(DS.describe(aggT({ success: { atLeastSets: 2 } }), cx), 'How the working sets went (at least 2 sets must fully hit, capped at the sets the session issues; every logged set counts).', 'the read states atLeastSets with its cap behavior (Z4)')
   const gz = reg.schemes.get('lib/gzclp-t1@2')!
   const handler = DS.describe(gz.on.session!, DS.cxOf(reg, { lib: true, nouns: { stage: 'stage', load: 'working weight' } }))
   assert(handler.includes('totalled their target reps'), `GZCLP’s arms state the total-reps rule: ${handler}`)
   const lines = DD.describeProgram(cfgTwoOfThree.def, DS.cxOf(reg))
-  assert(lines.some((l) => l.includes('Success: at least 2 sets must fully hit.')), `the slot line states the rule: ${lines.find((l) => l.startsWith('  squat'))}`)
+  assert(lines.some((l) => l.includes('Success: at least 2 sets must fully hit, capped at the sets the session issues; every logged set counts.')), `the slot line states the rule: ${lines.find((l) => l.startsWith('  squat'))}`)
 })
 
 // ── C2: the e1RM estimator ──────────────────────────────────────────────────

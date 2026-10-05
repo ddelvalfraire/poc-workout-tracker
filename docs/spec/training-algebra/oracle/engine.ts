@@ -140,6 +140,7 @@ export type TypeError = { path: (string | number)[]; message: string } & (
   | { code: 'policyOrder'; at: number } //                              policies out of the one application order
   // new in R2 (the evaluator's domain, decided at check where it is literal)
   | { code: 'literalDomain'; former: string; field: string; value: number | string } // round step ≤ 0, a negative or fractional nth index, a session with no steps
+  | { code: 'republishChanged'; ref: { id: string; version: number } } // Z1: a second publication at an existing (id, version) with a DIFFERENT body — a published version is immutable, by enforcement
 )
 
 /** Refusals at ingestion: the engine never applies these events. */
@@ -168,7 +169,9 @@ export type IngestRefusal =
   // new in the configurability fix round
   /** An instance-activation override outside its domain, or one spelling the
    *  program's own value (one form per meaning); returned typed, never thrown (Y9). */
-  | { code: 'badOverride'; option: string; value: number | string }
+  // Z10: the value is the TYPED offending value (JSON, never prose); the
+  // message carries the prose.
+  | { code: 'badOverride'; option: string; value: unknown; message: string }
 
 /** The elaborated, content-addressed form: the ONLY input of every engine
  *  operation below. */

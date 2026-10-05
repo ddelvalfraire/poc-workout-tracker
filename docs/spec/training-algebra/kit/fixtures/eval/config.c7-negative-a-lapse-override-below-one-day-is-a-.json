@@ -1,3 +1,3 @@
 {"source": {"suite":"config","test":"C7 negative: a lapse override below one day is a TYPED refusal at the boundary (Y9), never a thrown Error","ids":[]}, "fixtures": [
-{"op":"time.calendarSpecOf","args":[{"$def":"prog/c25k@1"},[],"x","2026-10-05","2026-10-05",{"lapseAfterDays":0}],"world":{},"expected":{"ret":{"code":"badOverride","option":"lapseAfterDays","value":0}}}
+{"op":"time.calendarSpecOf","args":[{"$def":"prog/c25k@1"},[],"x","2026-10-05","2026-10-05",{"lapseAfterDays":0}],"world":{},"expected":{"ret":{"code":"badOverride","option":"lapseAfterDays","value":0,"message":"lapseAfterDays is a whole number of days from 1, got 0"}}}
 ]}

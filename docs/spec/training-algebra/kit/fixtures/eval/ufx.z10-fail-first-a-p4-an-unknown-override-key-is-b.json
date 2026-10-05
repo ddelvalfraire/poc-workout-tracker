@@ -1,0 +1,5 @@
+{"source": {"suite":"ufx","test":"Z10 (fail-first, A-p4): an unknown override key is badOverride (a typo cannot read as \"no override\"), with a typed value and a separate message","ids":[]}, "fixtures": [
+{"op":"time.calendarSpecOf","args":[{"$def":"prog/linear-3x5@1"},[],"x","2026-10-05","2026-10-05",{"lapseAfterDay":5}],"world":{},"expected":{"ret":{"code":"badOverride","option":"lapseAfterDay","value":5,"message":"no activation override lapseAfterDay (lapseAfterDays, adherenceWeeks)"}}},
+{"op":"time.calendarSpecOf","args":[{"$def":"prog/linear-3x5@1"},[],"x","2026-10-05","2026-10-05",{"adherenceWeeks":{"calendarAligned":{"weekStart":"Monday","bogus":1}}}],"world":{},"expected":{"ret":{"code":"badOverride","option":"adherenceWeeks.calendarAligned.bogus","value":1,"message":"no field bogus in calendarAligned (weekStart)"}}},
+{"op":"time.calendarSpecOf","args":[{"$def":"prog/linear-3x5@1"},[],"x","2026-10-05","2026-10-05",{"adherenceWeeks":{"calendarAligned":null}}],"world":{},"expected":{"ret":{"code":"badOverride","option":"adherenceWeeks","value":{"calendarAligned":null},"message":"adherenceWeeks is 'fromAnchor' or {calendarAligned: {weekStart}}"}}}
+]}

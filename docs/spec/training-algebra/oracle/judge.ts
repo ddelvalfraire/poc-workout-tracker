@@ -109,19 +109,60 @@ export function verdictOf(src: EventSource, steps: string[] | 'working', edge: '
     let repsBars = 0
     let repsOpen = false
     let repsAllLogged = true
-    // atLeastSets n (C1), capped at the judged sets actually issued (Y2):
-    // per set, every bar must hit; the slot hits when min(n, issued) sets
-    // did, misses when too few can still hit, and is unknown between — so a
-    // deload-shrunk session an athlete fully hit still hits, and silence is
-    // never a miss.
+    // atLeastSets n (Z4's law, replacing Y2's logged-length cap): hit sets
+    // are counted among ALL logged judged sets, extras included (consistent
+    // with totalReps pooling; OWNER-OVERRIDABLE); the cap is the plan's
+    // ISSUED ceiling (count.n, a range's max, an until/while's max), never
+    // logged.length. hit when hitSets ≥ min(n, cap); missed only when even
+    // if every remaining issuable set hit it could not reach min(n, cap);
+    // unknown otherwise — so an early stop on an until step is unknown, not
+    // hit, and the verdict is monotone: more logged work never worsens it.
     let setsHit = 0
-    let setsMissed = 0
     let setsUnknown = 0
-    let setsJudged = 0
+    let setsCap = 0
+    let setsLoggedInCap = 0
+    let setsSeen = 0
     for (const st of slot.steps) {
       if (steps !== 'working' && !steps.includes(st.id)) continue
       const logged = loggedOf(src, slot.slot, st)
       const expected = st.count.k === 'n' ? st.count.n : st.count.k === 'range' ? st.count.min : logged.length
+      const ceiling = st.count.k === 'n' ? st.count.n : st.count.max
+      // One judged set's bars against its target; an extra set judges the
+      // bars of the set it extends (the step's last issued target).
+      const tallyOf = (target: NonNullable<IssuedStep['sets'][number]>, set: PerformedSet | undefined, skipReps: boolean): Tally => {
+        const one: Tally = { missed: false, unknown: false, judged: 0 }
+        for (const [m, fd] of Object.entries(target.metrics)) {
+          if (!fd || m === 'effort') continue
+          if (fd.k === 'silent' || (fd.k === 'fixed' && fd.v.b === 'open')) continue
+          if (skipReps && m === 'reps') continue
+          one.judged++
+          if (fd.k === 'open' || !set) {
+            one.unknown = true
+            continue
+          }
+          const decl = src.reg.vocab.metrics[m]
+          const x = set.values[m] ?? (decl?.measuredBy ? factNumber(src, decl.measuredBy) : undefined)
+          if (x === undefined) one.unknown = true
+          else if (!judgeValue(x, fd.v, decl, edge, assistedLoad(m, loggingOf(slot)))) one.missed = true
+        }
+        return one
+      }
+      if (atLeastSets !== null) {
+        for (let i = 0; i < Math.max(logged.length, ceiling); i++) {
+          const target = st.sets[Math.min(i, st.sets.length - 1)]
+          if (!target || (steps === 'working' && !isJudged(target))) continue
+          const one = tallyOf(target, logged[i], false)
+          if (one.judged === 0) continue
+          setsSeen++
+          if (i < ceiling) setsCap++
+          if (!logged[i]) continue
+          if (i < ceiling) setsLoggedInCap++
+          if (one.missed) void 0
+          else if (one.unknown) setsUnknown++
+          else setsHit++
+        }
+        continue
+      }
       let stepAggregates = false
       for (let i = 0; i < expected; i++) {
         const target = st.sets[i]
@@ -157,22 +198,28 @@ export function verdictOf(src: EventSource, steps: string[] | 'working', edge: '
           if (x === undefined) one.unknown = true
           else if (!judgeValue(x, f.v, decl, edge, assistedLoad(m, loggingOf(slot)))) one.missed = true
         }
-        if (atLeastSets !== null) {
-          const anyBar = one.judged > 0
-          if (anyBar) setsJudged++
-          if (anyBar && one.missed) setsMissed++
-          else if (anyBar && one.unknown) setsUnknown++
-          else if (anyBar) setsHit++
-          continue
-        }
         all.judged += one.judged
         all.missed ||= one.missed
         all.unknown ||= one.unknown
       }
       // The credit side (Y1): every logged set of a step that contributed a
-      // reps floor pays its logged reps into the pool, the sets beyond the
-      // expected count included.
-      if (stepAggregates) for (const s of logged) if (typeof s.values['reps'] === 'number') repsLogged += s.values['reps']
+      // reps floor pays its logged reps into the pool. A set beyond the
+      // expected count still pays in, but ONLY when every non-reps bar of
+      // the step it extends holds for it (Z9, OWNER-OVERRIDABLE): an
+      // empty-bar 30-rep set cannot rescue 5×3 at 100 kg. A non-qualifying
+      // extra changes nothing, so pooling stays monotone.
+      if (stepAggregates)
+        logged.forEach((s, i) => {
+          const r = s.values['reps']
+          if (typeof r !== 'number') return
+          if (i >= expected) {
+            const target = st.sets[Math.min(i, st.sets.length - 1)]
+            if (!target) return
+            const bars = tallyOf(target, s, true)
+            if (bars.missed || bars.unknown) return
+          }
+          repsLogged += r
+        })
     }
     if (repsAgg && repsBars > 0) {
       all.judged++
@@ -180,11 +227,14 @@ export function verdictOf(src: EventSource, steps: string[] | 'working', edge: '
       else if (!repsOpen && repsAllLogged) all.missed = true
       else all.unknown = true
     }
-    if (atLeastSets !== null && setsJudged > 0) {
+    if (atLeastSets !== null && setsSeen > 0) {
       all.judged++
-      const needed = Math.min(atLeastSets, setsJudged)
-      if (setsHit >= needed) void 0
-      else if (setsHit + setsUnknown < needed) all.missed = true
+      const needed = Math.min(atLeastSets, setsCap)
+      const potential = setsHit + setsUnknown + Math.max(0, setsCap - setsLoggedInCap)
+      // A zero issued ceiling judges nothing: never a vacuous hit (the C9 posture).
+      if (setsCap === 0) all.unknown = true
+      else if (setsHit >= needed) void 0
+      else if (potential < needed) all.missed = true
       else all.unknown = true
     }
   }

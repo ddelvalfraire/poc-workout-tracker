@@ -130,6 +130,13 @@ function e1rmConsumed(cx: OptCx): boolean {
     terms.push(s.plan, ...Object.values(s.on), ...Object.values(s.state).map((d) => d.init), ...Object.values(b.args))
   }
   terms.push(...cx.def.policies.map((p) => p.when), ...Object.values(cx.def.aggregate?.on ?? {}), ...Object.values(cx.def.aggregate?.state ?? {}).map((d) => d.init))
+  // B-W1 (Z3): a policy's plan Use is a consumer too — its bound fn's body
+  // and its argument terms both evaluate under the program's seams.
+  for (const pol of cx.def.policies) {
+    if (!pol.plan) continue
+    terms.push(...Object.values(pol.plan.args))
+    if (consumes(cx.reg.fns.get(`${pol.plan.def.id}@${pol.plan.def.version}`)?.body)) return true
+  }
   return terms.some(consumes)
 }
 
@@ -146,8 +153,11 @@ export const PROGRAM_OPTIONS: readonly ProgramOptionSpec[] = [
         if (!(typeof maxReps === 'number' && Number.isInteger(maxReps) && maxReps >= 1))
           return err(out, { code: 'literalDomain', former: 'program', field: 'e1rm.maxReps', value: maxReps as number, path: ['e1rm', 'maxReps'], message: `maxReps is a whole number of reps from 1, got ${maxReps}` })
         const dm = E1RM_FORMULAS[formula as E1rmFormula].domainMax
-        if (dm !== null && maxReps > dm)
-          return err(out, { code: 'literalDomain', former: 'program', field: 'e1rm.maxReps', value: maxReps, path: ['e1rm', 'maxReps'], message: `maxReps ${maxReps} is beyond the ${String(formula)} domain (${dm}): the cap could never bind` })
+        // Z2: the formula's own edge is already a cap, so a maxReps AT the
+        // domain max binds nothing either — >= refuses the edge the > check
+        // let through.
+        if (dm !== null && maxReps >= dm)
+          return err(out, { code: 'literalDomain', former: 'program', field: 'e1rm.maxReps', value: maxReps, path: ['e1rm', 'maxReps'], message: `maxReps ${maxReps} is not below the ${String(formula)} domain (${dm}): the cap could never bind` })
       }
       if (formula === DEFAULT_E1RM_FORMULA && maxReps === undefined) return oneForm(out, ['e1rm'], 'e1rm', `{formula: 'epley'} alone`)
       if (!e1rmConsumed(cx))
@@ -177,22 +187,20 @@ export const PROGRAM_OPTIONS: readonly ProgramOptionSpec[] = [
       if (!isObj(v)) return err(out, { code: 'unknownName', name: String(v), path: ['volumeWeights'], message: `volumeWeights is {stage?, cluster?}, got ${v === null ? 'null' : typeof v}` })
       const keys = Object.keys(v)
       if (!keys.length) return oneForm(out, ['volumeWeights'], 'volumeWeights', '{}')
-      let allDefault = true
       for (const k of keys) {
         const x = v[k]
         if (!(k in VOLUME_DEFAULTS)) {
           err(out, { code: 'unknownName', name: k, path: ['volumeWeights', k], message: `no volume weight ${k} (stage, cluster)` })
-          allDefault = false
           continue
         }
         if (!(typeof x === 'number' && Number.isFinite(x) && x > 0 && x <= 1)) {
           err(out, { code: 'literalDomain', former: 'program', field: `volumeWeights.${k}`, value: x as number, path: ['volumeWeights', k], message: `a volume weight lies in (0, 1], got ${x}` })
-          allDefault = false
           continue
         }
-        if (x !== VOLUME_DEFAULTS[k as keyof typeof VOLUME_DEFAULTS]) allDefault = false
+        // Z2: one form per meaning holds PER ENTRY — an entry spelling its
+        // own default is a second form even when a sibling differs.
+        if (x === VOLUME_DEFAULTS[k as keyof typeof VOLUME_DEFAULTS]) oneForm(out, ['volumeWeights', k], `volumeWeights.${k}`, `${k} at its default (${x})`)
       }
-      if (allDefault) oneForm(out, ['volumeWeights'], 'volumeWeights', 'every entry at its default')
     },
     describe(v: NonNullable<ProgramDef['volumeWeights']>) {
       const parts = [
@@ -225,7 +233,12 @@ export const PROGRAM_OPTIONS: readonly ProgramOptionSpec[] = [
       })
       if (!clean) return
       const canon = canonicalStrip(v, cx.def.calendar.weeks)
-      if ([...v].sort().join() === [...STRIP_DEFAULT].sort().join()) return oneForm(out, ['stripIntensifierOn'], 'stripIntensifierOn', 'the default role set')
+      // Z2: the comparison is IN EFFECT — the default set intersected with
+      // the calendar's roles. L10 can only ever strip weeks the calendar
+      // has, so ['deload'] on a train/deload calendar means exactly what
+      // omission means there.
+      const effectiveDefault = STRIP_DEFAULT.filter((r) => (cal as readonly string[]).includes(r))
+      if ([...v].sort().join() === [...effectiveDefault].sort().join()) return oneForm(out, ['stripIntensifierOn'], 'stripIntensifierOn', `the default role set in effect (${effectiveDefault.length ? effectiveDefault.join(', ') : 'no strip role on this calendar'})`)
       if (v.join() !== canon.join())
         err(out, { code: 'literalDomain', former: 'program', field: 'stripIntensifierOn', value: v.join(','), path: ['stripIntensifierOn'], message: `the canonical spelling lists roles in calendar order (${canon.join(', ')}): one form per meaning` })
     },
@@ -251,26 +264,21 @@ export const PROGRAM_OPTIONS: readonly ProgramOptionSpec[] = [
       const entries = Object.entries(v)
       if (!entries.length) return oneForm(out, ['staleness'], 'staleness', '{}')
       const readable = new Set([...cx.def.facts, ...Object.values(cx.def.slots).flatMap((b) => cx.reg.schemes.get(`${b.scheme.id}@${b.scheme.version}`)?.facts ?? [])])
-      let allDefault = true
       for (const [fact, days] of entries) {
         const decl = cx.reg.vocab.facts[fact]
         if (!decl) {
           err(out, { code: 'unknownName', name: fact, path: ['staleness', fact], message: `no fact ${fact}` })
-          allDefault = false
           continue
         }
-        if (!readable.has(fact)) {
-          err(out, { code: 'undeclaredFact', fact, path: ['staleness', fact], message: `a staleness override for ${fact}, which neither the program nor any bound scheme reads` })
-          allDefault = false
-        }
+        if (!readable.has(fact)) err(out, { code: 'undeclaredFact', fact, path: ['staleness', fact], message: `a staleness override for ${fact}, which neither the program nor any bound scheme reads` })
         if (!(typeof days === 'number' && Number.isInteger(days) && days >= 1)) {
           err(out, { code: 'literalDomain', former: 'program', field: 'staleness', value: days as number, path: ['staleness', fact], message: `staleness is a whole number of days from 1, got ${days}` })
-          allDefault = false
           continue
         }
-        if (days !== decl.maxAgeDays) allDefault = false
+        // Z2: per entry, a value spelling the registry's own maxAgeDays is a
+        // second form of the default and is refused.
+        if (days === decl.maxAgeDays) oneForm(out, ['staleness', fact], 'staleness', `${fact} at the registry's maxAgeDays (${days})`)
       }
-      if (allDefault) oneForm(out, ['staleness'], 'staleness', `every entry at the registry's maxAgeDays`)
     },
     describe(v: NonNullable<ProgramDef['staleness']>, def, reg) {
       // The Reads line covers facts the program declares; the rest get their
@@ -310,6 +318,18 @@ export function checkSlotGrids(v: unknown, slot: string, programGrids: ProgramDe
       err(out, { code: 'unknownName', name: String(g), path: [...at, m], message: `a grid is a quantity term, got ${g === null ? 'null' : typeof g}` })
       continue
     }
+    // Z7: a grid is a POSITIVE QUANTITY LITERAL, slot grids included — a
+    // computed term has no display unit (the display:{} hole), and a zero
+    // or negative step quantizes nothing.
+    const gl = g as Term
+    if (!(gl.k === 'lit' && gl.lit.k === 'q' && !gl.lit.per)) {
+      err(out, { code: 'boundNotLiteral', got: gl.k, path: [...at, m], message: `a grid is a closed quantity literal (its unit is the display unit); a computed term is not one` })
+      continue
+    }
+    if (!(gl.lit.v > 0)) {
+      err(out, { code: 'literalDomain', former: 'program', field: 'meta.grids', value: gl.lit.v, path: [...at, m], message: `a grid step is a positive quantity, got ${gl.lit.v}` })
+      continue
+    }
     const p = programGrids[m]
     if (!p) continue
     const [sl, pl] = [g as Term, p]
@@ -322,6 +342,10 @@ export function checkSlotGrids(v: unknown, slot: string, programGrids: ProgramDe
 /** The type each defaulted-param label must describe; labels are prose, so
  *  only existence is checked (a label for a non-default is unknownName). */
 export function checkLabels(labels: Record<string, string> | undefined, defaults: Record<string, Term> | undefined, out: TypeError[]): void {
+  // One form per meaning (Z2, the defaults:{} posture): no labels is
+  // spelled by omitting the field.
+  if (labels && !Object.keys(labels).length)
+    err(out, { code: 'literalDomain', former: 'labels', field: 'labels', value: '{}', path: ['labels'], message: 'labels {} spells no labels: omit it (one form per meaning)' })
   for (const k of Object.keys(labels ?? {}))
     if (!(k in (defaults ?? {}))) err(out, { code: 'unknownName', name: k, path: ['labels', k], message: `a label for ${k}, which has no default (labels name defaulted params in the "(with …)" append)` })
 }

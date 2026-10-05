@@ -57,22 +57,10 @@ t('', 'U1: mixed-unit arithmetic is one canonical sum (U-L1): 100 kg + 5 lb carr
 /** A kg program grid (machines) and an lb slot grid (barbell), with the
  *  increments CROSSED: an lb increment on the kg grid and a kg increment on
  *  the lb grid. This is the permanent regression for "convert exactly at the
- *  boundary, never convert a grid". */
-const mix = program({
-  id: 'prog/mixed-units',
-  version: 1,
-  says: 'Mixed units: a kg default grid with an lb slot grid, increments crossed',
-  params: {},
-  calendar: { weeks: ['train'], repeat: 'cycle' },
-  grids: { load: kg(2.5) },
-  muscles: ['quads', 'chest'],
-  slots: () => ({
-    machine: P.linearGated.bind({ lift: SQUAT, sets: sets(3), reps: reps(5), inc: lb(5), backoff: pct(90), stalls: num(3) }, { muscles: { quads: 1 } }),
-    barbell: P.linearGated.bind({ lift: BENCH, sets: sets(3), reps: reps(5), inc: kg(2.5), backoff: pct(90), stalls: num(3) }, { muscles: { chest: 1 }, grids: { load: lb(5) } }),
-  }),
-  days: { A: [single('machine'), single('barbell')] },
-  rotation: { k: 'alternate', days: ['A'], perWeek: 2 },
-})
+ *  boundary, never convert a grid". Z12 promoted it into the corpus
+ *  (programs.ts mixedUnits), so the prose-vs-evaluation differential and the
+ *  shared registry see slot grids too. */
+const mix = P.mixedUnits
 
 const FACTS = TK.factsOf({ e1rm: { 'wger:111': TK.q(120, 'kg'), 'wger:192': TK.q(222, 'lb') } })
 const started = () => TK.start(mix.def, {}, FACTS)
@@ -158,8 +146,11 @@ t('', 'U2 (fail-first, Y10 posture): malformed slot-grid JSON is a typed refusal
 })
 
 t('', 'U2: a kg slot grid of the program’s VALUE in another unit is a DIFFERENT grid (the display unit is part of the meaning), and the embedding drops an empty grids record', () => {
-  const errs = progErrors(withBarbellGrids({ load: { k: 'lit', lit: { k: 'q', v: 2.5 / UN.LB_IN_KG, unit: 'lb' } } as Term }))
-  eq(errs, [], 'a 5.51155… lb grid displays lb: legal, not the default')
+  // Z7 (C-7): the genuine "same value in the other unit" literal — a q
+  // literal stores its CANONICAL value, so the program's 2.5 kg step shown
+  // in lb is {v: 2.5, unit: 'lb'} (5.512 lb), not 2.5/LB_IN_KG.
+  const errs = progErrors(withBarbellGrids({ load: { k: 'lit', lit: { k: 'q', v: 2.5, unit: 'lb' } } as Term }))
+  eq(errs, [], 'the 2.5 kg step displayed in lb (5.512 lb) is a DIFFERENT grid: legal, not the default')
   const b = P.linearGated.bind({ lift: BENCH, sets: sets(3), reps: reps(5), inc: kg(2.5), backoff: pct(90), stalls: num(3) }, { muscles: { chest: 1 }, grids: {} })
   eq('grids' in b.meta, false, 'the embedding has ONE spelling of "the program’s grids": omission')
 })

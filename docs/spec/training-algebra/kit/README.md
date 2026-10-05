@@ -15,7 +15,7 @@ This kit lets a second implementation (the target is Rust) be built and proven a
 
 ## Regenerating
 
-Run `./verify.sh` in `../oracle/`. Step 8 copies the package to a scratch directory, rewrites every operation in `OPS` (`kit.ts`) there to call the recorder (`kit-verify.ts tap`), and runs the suites (`semantics.test.ts`, `laws.test.ts`, `conformance.ts` with `differential.ts`, `demo.ts`, then `hardening.test.ts`, `coverage.test.ts`, `semfix.test.ts` and `weekbasis.test.ts`) unchanged under it (`kit-gen.ts`, `kit-record.ts`). Each top-level call a test makes becomes a fixture; calls the oracle makes inside another are part of that fixture's behavior, not fixtures of their own. Then `kit-verify.ts check` writes `ir-schema.json` (`kit-schema.ts`), validates every file against it, replays every fixture on the untouched oracle and diffs the result with the stored output, renders this file and `SPEC.md` from `kit-readme.md` and `kit-spec.md`, and fails on any invalid file or mismatch.
+Run `./verify.sh` in `../oracle/`. Step 8 copies the package to a scratch directory, rewrites every operation in `OPS` (`kit.ts`) there to call the recorder (`kit-verify.ts tap`), and runs the suites (`semantics.test.ts`, `laws.test.ts`, `conformance.ts` with `differential.ts`, `demo.ts`, then `hardening.test.ts`, `coverage.test.ts`, `semfix.test.ts`, `weekbasis.test.ts`, `patfix.test.ts`, `config.test.ts`, `cfgfix.test.ts`, `units.test.ts` and `ufx.test.ts`) unchanged under it (`kit-gen.ts`, `kit-record.ts`). Each top-level call a test makes becomes a fixture; calls the oracle makes inside another are part of that fixture's behavior, not fixtures of their own. Then `kit-verify.ts check` writes `ir-schema.json` (`kit-schema.ts`), validates every file against it, replays every fixture on the untouched oracle and diffs the result with the stored output, renders this file and `SPEC.md` from `kit-readme.md` and `kit-spec.md`, and fails on any invalid file or mismatch.
 
 The generator source lives beside the oracle so it is type-checked with it (step 1): `kit.ts` (the codec, the comparator, the operation table), `kit-schema.ts` (the schema, built from the TS declarations and runtime mirrors, and the validator), `kit-record.ts` and `kit-gen.ts` (the recorder), `kit-verify.ts` (the tap and the check), `kit-spec.md`, `kit-spec-typing.md` and `kit-readme.md` (the document templates), `kit-shim.d.ts`.
 
@@ -23,18 +23,18 @@ The generator source lives beside the oracle so it is type-checked with it (step
 
 | directory | files | fixtures |
 |---|---|---|
-| fixtures/defs | 49 | 49 |
-| fixtures/registries | 12 | 12 |
-| fixtures/eval | 226 | 1844 |
-| fixtures/refusals | 351 | 351 |
-| fixtures/prose | 86 | 484 |
+| fixtures/defs | 59 | 59 |
+| fixtures/registries | 16 | 16 |
+| fixtures/eval | 245 | 2026 |
+| fixtures/refusals | 366 | 366 |
+| fixtures/prose | 108 | 622 |
 
-Compile-time and ingest refusal codes with at least one refusal fixture: 49 of 50. Codes with none: `badOverride`, `dayStampOutOfRange`, `floorNotConfirmed`.
+Compile-time and ingest refusal codes with at least one refusal fixture: 49 of 50. Codes with none: `republishChanged`, `badOverride`, `dayStampOutOfRange`, `floorNotConfirmed`.
 
 Refusal fixtures whose input is authoring JSON that does not parse as IR (tagged `inputSchemaErrors`; the checker still answers them, and the schema is stricter than the checker there): 
 
-- literalDomain: cfgfix.literaldomain.16.json
 - literalDomain: cfgfix.literaldomain.17.json
+- literalDomain: cfgfix.literaldomain.18.json
 - literalDomain: cfgfix.literaldomain.3.json
 - literalDomain: cfgfix.literaldomain.4.json
 - unknownName: cfgfix.unknownname.2.json
@@ -84,13 +84,15 @@ Sampling and what was not exported:
 {
  "capPerTestAndOp": {
   "evaluate.evaluate": 24,
-  "issue.applyUse": 16
+  "issue.applyUse": 16,
+  "judge.verdictOf": 48
  },
  "sampledOut": {
-  "evaluate.evaluate": 1496,
-  "issue.applyUse": 87
+  "evaluate.evaluate": 1568,
+  "issue.applyUse": 87,
+  "judge.verdictOf": 2304
  },
- "duplicatesDropped": 2343,
+ "duplicatesDropped": 2750,
  "notExported": {
   "step.activate: codec: a registry whose definitions and publication order disagree": 6,
   "step.prescribe: codec: a registry whose definitions and publication order disagree": 4,
@@ -128,7 +130,7 @@ A branch is exercised when some fixture file's data takes it (definitions, regis
 | Length | 3 | — | — |
 | ExportDecl | 1 | — | — |
 | XformOp | 8 | — | swapExercise, addSets |
-| TypeError | 43 | — | unitMismatch, notComparable, absenceUnhandled, unknownName, missingArg, forwardStepRef, capabilityEscape, notOwner, notWritableHere, undeclaredFact, nonGroundAccumulator, nonExhaustive, boundNotLiteral, templateHoles, exampleFailed, futureRef, peakNeedsFixed, overBudget, metricNotLogged, shapeNotAllowed, scopedFormer, infeasibleFrequency, timeCommit, anchoredRequired, restOwnedByGroup, windowTooLong, primaryMuscle, boundsInverted, openNotLast, fixedNeedsOnce, emomNeedsFixedCount, importMismatch, clockMix, clockRate, loggingMismatch, nExceedsMax, unlabeledLet, thresholdOrder, tableShape, roleDoubleEncoding, noSuchKind, policyOrder, literalDomain |
+| TypeError | 44 | republishChanged | unitMismatch, notComparable, absenceUnhandled, unknownName, missingArg, forwardStepRef, capabilityEscape, notOwner, notWritableHere, undeclaredFact, nonGroundAccumulator, nonExhaustive, boundNotLiteral, templateHoles, exampleFailed, futureRef, peakNeedsFixed, overBudget, metricNotLogged, shapeNotAllowed, scopedFormer, infeasibleFrequency, timeCommit, anchoredRequired, restOwnedByGroup, windowTooLong, primaryMuscle, boundsInverted, openNotLast, fixedNeedsOnce, emomNeedsFixedCount, importMismatch, clockMix, clockRate, loggingMismatch, nExceedsMax, unlabeledLet, thresholdOrder, tableShape, roleDoubleEncoding, noSuchKind, policyOrder, literalDomain, republishChanged |
 | IngestRefusal | 9 | dayStampOutOfRange, floorNotConfirmed | emptySession, badOverride, notALocalDay, dayStampOutOfRange, programComplete, floorNotConfirmed, instanceClosed, notOwnerWritable, rebindNeedsMigration |
 
 Term formers that no evaluation fixture's trace shows being evaluated: none.

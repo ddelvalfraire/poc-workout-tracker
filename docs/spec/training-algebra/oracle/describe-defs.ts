@@ -128,6 +128,9 @@ export function programCx(p: ProgramDef, cx: Cx): Cx {
       return `the ${slot} slot's ${s?.state[field]?.noun ?? field}`
     },
     programNouns: Object.fromEntries(Object.entries(p.aggregate?.state ?? {}).map(([k, v]) => [k, v.noun])),
+    // Z11: a read-level estimator formula is named against the program's
+    // EFFECTIVE one, so explicit Epley under a Brzycki program says Epley.
+    ...(p.e1rm ? { effectiveFormula: p.e1rm.formula } : {}),
     // Program-level terms (policies, the aggregate) read the aggregate's state.
     nouns: Object.fromEntries(Object.entries(p.aggregate?.state ?? {}).map(([k, v]) => [k, v.noun])),
   }

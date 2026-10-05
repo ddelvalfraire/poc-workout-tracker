@@ -19,8 +19,9 @@
  * Only LIBRARY definitions render their templates and bare nouns; a user
  * definition's `named` noun renders with its expansion beside it (D5).
  */
-import { weeklyIsOpt, type BoundIR, type Lit, type PatchField, type RefKind, type StepIR, type SuccessRule, type Term } from './algebra'
+import { weeklyIsOpt, type BoundIR, type E1rmFormula, type Lit, type PatchField, type RefKind, type StepIR, type SuccessRule, type Term } from './algebra'
 import { canonicalJson } from './canonical'
+import { DEFAULT_E1RM_FORMULA } from './options'
 import { isLib, type Registry } from './checker'
 import type { MetricDecl } from './registry'
 import type { Selector } from './time'
@@ -50,6 +51,11 @@ export interface Cx {
    *  compacts like the literal it replaced (Y11); other param ranges keep
    *  their spelled-out form. */
   defaulted?: ReadonlySet<string>
+  /** The program's EFFECTIVE e1RM formula (Z11): a read-level formula is
+   *  named whenever it differs from this, so the prose never implies the
+   *  program's default where the read overrides it. Absent means the engine
+   *  default. */
+  effectiveFormula?: E1rmFormula
 }
 
 export function cxOf(reg: Registry, over: Partial<Cx> = {}): Cx {
@@ -165,7 +171,7 @@ const isVerdict = (t: Term) => t.k === 'event' && t.q.q === 'verdict'
 /** The declared success rule's phrase (C1); empty for the allSets default,
  *  stated when a READ spells 'allSets' to override a slot rule (Y8). */
 export const successText = (su: SuccessRule | 'allSets' | undefined): string =>
-  su === undefined ? '' : su === 'allSets' ? ' (every set at its own bar)' : su === 'totalReps' ? ' (counting total reps across all sets)' : ` (at least ${su.atLeastSets} sets must fully hit)`
+  su === undefined ? '' : su === 'allSets' ? ' (every set at its own bar)' : su === 'totalReps' ? ' (counting total reps across all sets)' : ` (at least ${su.atLeastSets} sets must fully hit, capped at the sets the session issues; every logged set counts)`
 function verdictArms(on: Term, cx: Cx): Record<string, string> {
   const q = on.k === 'event' && on.q.q === 'verdict' ? on.q : null
   const what = !q || q.steps === 'working' ? 'working set' : `set of ${q.steps.map((s) => `“${s}”`).join(' and ')}`
@@ -182,8 +188,8 @@ function verdictArms(on: Term, cx: Cx): Record<string, string> {
     }
   if (su && typeof su === 'object')
     return {
-      hit: `at least ${su.atLeastSets} ${what}s fully reached ${edge}`,
-      missed: `too few ${what}s could still reach it`,
+      hit: `at least ${su.atLeastSets} ${what}s (capped at the sets the session issues) fully reached ${edge}, extra sets included`,
+      missed: `too few ${what}s could reach it even if every remaining set hit`,
       unknown: 'nothing decided it: something went unlogged',
     }
   return {
@@ -299,7 +305,7 @@ const EVENT: { [Q in Extract<Term, { k: 'event' }>['q']['q']]: (q: Extract<Extra
       : q.pick === 'sum'
         ? `the total ${mNoun(cx, q.metric)} you logged on “${q.step}”`
         : `the ${q.pick === 'last' ? '' : `${q.pick} `}${mNoun(cx, q.metric)} you logged on “${q.step}”`,
-  e1rm: (q) => `the max estimated from “${q.step}”${q.formula && q.formula !== 'epley' ? ` (${q.formula.charAt(0).toUpperCase()}${q.formula.slice(1)})` : ''}`,
+  e1rm: (q, cx) => `the max estimated from “${q.step}”${q.formula && q.formula !== (cx.effectiveFormula ?? DEFAULT_E1RM_FORMULA) ? ` (${q.formula.charAt(0).toUpperCase()}${q.formula.slice(1)})` : ''}`,
   prescribed: (q, cx) => `the ${q.edge === 'top' ? 'top of the ' : ''}${mNoun(cx, q.metric)} prescribed for “${q.step}”`,
   stages: (q) => (q.pick === 'count' ? `how many mini-sets you did on “${q.step}”` : q.pick === 'sum' ? `the reps across every mini-set of “${q.step}”` : `the reps on the last mini-set of “${q.step}”`),
   trained: (q, cx) => `this session trained ${d(q.muscle, cx)}`,

@@ -1,0 +1,296 @@
+{
+ "kind": "macro",
+ "ref": {
+  "id": "macro/opt-16wk",
+  "version": 2
+ },
+ "says": "NASM OPT: stabilization until the ladders are climbed (4–6 weeks), then strength endurance, hypertrophy, maximal strength and power, each phase seeded from the last",
+ "anchor": {
+  "k": "startOn",
+  "date": "2026-11-02"
+ },
+ "drift": "slide",
+ "phases": [
+  {
+   "label": "Stabilization endurance",
+   "program": {
+    "id": "prog/opt-stabilization",
+    "version": 1
+   },
+   "length": {
+    "k": "bounded",
+    "min": 4,
+    "max": 6,
+    "advanceWhen": {
+     "k": "logic",
+     "op": "and",
+     "a": {
+      "k": "cmp",
+      "op": ">=",
+      "a": {
+       "k": "peer",
+       "slot": "pushStab",
+       "field": "rung",
+       "of": "current"
+      },
+      "b": {
+       "k": "lit",
+       "lit": {
+        "k": "q",
+        "v": 2,
+        "unit": "x"
+       }
+      }
+     },
+     "b": {
+      "k": "cmp",
+      "op": ">=",
+      "a": {
+       "k": "peer",
+       "slot": "squatStab",
+       "field": "rung",
+       "of": "current"
+      },
+      "b": {
+       "k": "lit",
+       "lit": {
+        "k": "q",
+        "v": 2,
+        "unit": "x"
+       }
+      }
+     }
+    },
+    "atMax": "propose"
+   },
+   "args": {},
+   "transform": null
+  },
+  {
+   "label": "Strength endurance",
+   "program": {
+    "id": "prog/opt-strength-endurance",
+    "version": 2
+   },
+   "length": {
+    "k": "fixed"
+   },
+   "args": {
+    "benchStart": {
+     "k": "none",
+     "of": {
+      "t": "q",
+      "dim": {
+       "mass": 1
+      }
+     }
+    },
+    "rung": {
+     "k": "peer",
+     "slot": "pushStab",
+     "field": "rung",
+     "of": "prevPhase"
+    }
+   },
+   "transform": {
+    "def": {
+     "id": "lib/with-tempo",
+     "version": 1
+    },
+    "hole": "s",
+    "args": {
+     "t": {
+      "k": "tempo",
+      "ecc": 2,
+      "pause": 0,
+      "con": 2,
+      "top": 0
+     }
+    }
+   }
+  },
+  {
+   "label": "Hypertrophy",
+   "program": {
+    "id": "prog/opt-loaded",
+    "version": 2
+   },
+   "length": {
+    "k": "fixed"
+   },
+   "args": {
+    "benchStart": {
+     "k": "peer",
+     "slot": "bench",
+     "field": "load",
+     "of": "prevPhase"
+    }
+   },
+   "transform": {
+    "def": {
+     "id": "lib/rep-shape",
+     "version": 1
+    },
+    "hole": "s",
+    "args": {
+     "lo": {
+      "k": "lit",
+      "lit": {
+       "k": "q",
+       "v": 6,
+       "unit": "rep"
+      }
+     },
+     "hi": {
+      "k": "lit",
+      "lit": {
+       "k": "q",
+       "v": 12,
+       "unit": "rep"
+      }
+     },
+     "t": {
+      "k": "tempo",
+      "ecc": 2,
+      "pause": 0,
+      "con": 2,
+      "top": 0
+     }
+    }
+   }
+  },
+  {
+   "label": "Maximal strength",
+   "program": {
+    "id": "prog/opt-loaded",
+    "version": 2
+   },
+   "length": {
+    "k": "fixed"
+   },
+   "args": {
+    "benchStart": {
+     "k": "known",
+     "a": {
+      "k": "peer",
+      "slot": "bench",
+      "field": "load",
+      "of": "prevPhase"
+     },
+     "as": "v66",
+     "body": {
+      "k": "round",
+      "mode": "nearest",
+      "a": {
+       "k": "arith",
+       "op": "*",
+       "a": {
+        "k": "var",
+        "name": "v66"
+       },
+       "b": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 1.1500000000000001,
+         "unit": "pct"
+        }
+       }
+      },
+      "step": {
+       "k": "lit",
+       "lit": {
+        "k": "q",
+        "v": 2.5,
+        "unit": "kg"
+       }
+      }
+     },
+     "then": false
+    }
+   },
+   "transform": {
+    "def": {
+     "id": "lib/rep-shape",
+     "version": 1
+    },
+    "hole": "s",
+    "args": {
+     "lo": {
+      "k": "lit",
+      "lit": {
+       "k": "q",
+       "v": 1,
+       "unit": "rep"
+      }
+     },
+     "hi": {
+      "k": "lit",
+      "lit": {
+       "k": "q",
+       "v": 5,
+       "unit": "rep"
+      }
+     },
+     "t": {
+      "k": "tempo",
+      "ecc": 1,
+      "pause": 0,
+      "con": 1,
+      "top": 0
+     }
+    }
+   }
+  },
+  {
+   "label": "Power",
+   "program": {
+    "id": "prog/opt-power",
+    "version": 2
+   },
+   "length": {
+    "k": "open"
+   },
+   "args": {
+    "benchStart": {
+     "k": "peer",
+     "slot": "bench",
+     "field": "load",
+     "of": "prevPhase"
+    }
+   },
+   "transform": {
+    "def": {
+     "id": "lib/rep-shape",
+     "version": 1
+    },
+    "hole": "s",
+    "args": {
+     "lo": {
+      "k": "lit",
+      "lit": {
+       "k": "q",
+       "v": 1,
+       "unit": "rep"
+      }
+     },
+     "hi": {
+      "k": "lit",
+      "lit": {
+       "k": "q",
+       "v": 5,
+       "unit": "rep"
+      }
+     },
+     "t": {
+      "k": "tempo",
+      "ecc": 1,
+      "pause": 0,
+      "con": 1,
+      "top": 0
+     }
+    }
+   }
+  }
+ ]
+}

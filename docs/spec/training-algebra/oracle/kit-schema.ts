@@ -451,10 +451,11 @@ const TypeErrorS = union<TypeError, 'code'>('TypeError', 'code', {
   noSuchKind: { ...TE, kind: str },
   policyOrder: { ...TE, at: int },
   literalDomain: { ...TE, former: str, field: str, value: anyOf(num, str) },
+  republishChanged: { ...TE, ref: DefRefS },
 })
 const IngestRefusalS = union<IngestRefusal, 'code'>('IngestRefusal', 'code', {
   emptySession: { workoutId: str },
-  badOverride: { option: str, value: anyOf(num, str) },
+  badOverride: { option: str, value: any, message: str },
   notALocalDay: { stamped: str },
   dayStampOutOfRange: { stamped: day, utc: str },
   programComplete: {},
@@ -772,6 +773,7 @@ const CxS = def(
     slotSuccess: opt(SuccessRuleS),
     defaulted: opt(setOf(str)),
     alignedWeeks: opt(str),
+    effectiveFormula: opt(E1rmFormulaS),
   }),
 )
 const RuntimeS = def('Runtime', shape<Runtime>()({ reg: RegistryTok, def: ProgramDefS, spec: CalendarSpecS, overrides: opt(OverridesS), phaseTransform: nullable(UseS), phase: nullable(str) }))
@@ -846,7 +848,10 @@ export const OP_SIGS: { [K in Op]: Sig } = {
     ret: anyOf(OccurrenceS, obj({ refused: lit('emptySession'), workoutId: str })),
   },
   'time.completedFraction': { args: [CalendarStateS], ret: num },
-  'time.calendarSpecOf': { args: [ProgramDefS, arr(SelectorS), str, day, day, opt(obj({ lapseAfterDays: opt(num), adherenceWeeks: opt(anyOf(lit('fromAnchor'), obj({ calendarAligned: obj({ weekStart: str }) }))) }))], ret: anyOf(CalendarSpecS, IngestRefusalS) },
+  // The overrides argument is BOUNDARY JSON (Z10: strict ingestion means the
+  // function itself judges unknown keys and malformed records), so the op
+  // signature admits any JSON there; the valid shape is SpecOverrides.
+  'time.calendarSpecOf': { args: [ProgramDefS, arr(SelectorS), str, day, day, opt(any)], ret: anyOf(CalendarSpecS, IngestRefusalS) },
   'checker.top': { args: [T, ScopeS, Path, nullable(Ty_), TypeErrors], ret: nullable(obj({ ty: Ty_, cost: int })) },
   'checkdefs.checkFn': { args: [FnDefS, RegistryTok], ret: TypeErrors },
   'checkdefs.checkScheme': { args: [SchemeDefS, RegistryTok, opt(any)], ret: TypeErrors },

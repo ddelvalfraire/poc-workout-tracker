@@ -246,14 +246,29 @@ export function calendarSpecOf(p: ProgramDef, reads: readonly Selector[], instan
   const tracked = [...new Map(all.map((x) => [selKey(x), x])).values()]
   // Bad overrides are TYPED refusals, never thrown (Y9); an override that
   // spells the program's own value is a second form of the same meaning and
-  // is refused too (Y4's one-form law at the activation boundary).
+  // is refused too (Y4's one-form law at the activation boundary). Ingestion
+  // is STRICT (Z10): an unknown key, at the top or inside the aligned
+  // record, is a refusal, never silently dropped — a typo would otherwise
+  // read as "no override". The value field is the typed offending value;
+  // prose lives in the message.
+  for (const k of Object.keys(overrides)) if (k !== 'lapseAfterDays' && k !== 'adherenceWeeks') return { code: 'badOverride', option: k, value: (overrides as Record<string, unknown>)[k], message: `no activation override ${k} (lapseAfterDays, adherenceWeeks)` }
   const lapse = overrides.lapseAfterDays ?? p.lapseAfterDays
-  if (!(Number.isInteger(lapse) && lapse >= 1)) return { code: 'badOverride', option: 'lapseAfterDays', value: lapse }
-  if (overrides.lapseAfterDays !== undefined && overrides.lapseAfterDays === p.lapseAfterDays) return { code: 'badOverride', option: 'lapseAfterDays', value: `${lapse} (the program's own value: omit the override)` }
+  if (!(Number.isInteger(lapse) && lapse >= 1)) return { code: 'badOverride', option: 'lapseAfterDays', value: lapse, message: `lapseAfterDays is a whole number of days from 1, got ${lapse}` }
+  if (overrides.lapseAfterDays !== undefined && overrides.lapseAfterDays === p.lapseAfterDays)
+    return { code: 'badOverride', option: 'lapseAfterDays', value: lapse, message: `the program's own value: omit the override` }
   const aw = overrides.adherenceWeeks ?? p.adherenceWeeks ?? 'fromAnchor'
-  if (aw !== 'fromAnchor' && !WEEKDAYS.includes(aw.calendarAligned?.weekStart)) return { code: 'badOverride', option: 'adherenceWeeks.calendarAligned.weekStart', value: String(aw.calendarAligned?.weekStart) }
+  if (overrides.adherenceWeeks !== undefined && overrides.adherenceWeeks !== 'fromAnchor') {
+    const o = overrides.adherenceWeeks as unknown
+    const rec = o && typeof o === 'object' && !Array.isArray(o) ? (o as Record<string, unknown>) : null
+    if (!rec || Object.keys(rec).join() !== 'calendarAligned' || !rec['calendarAligned'] || typeof rec['calendarAligned'] !== 'object')
+      return { code: 'badOverride', option: 'adherenceWeeks', value: o, message: `adherenceWeeks is 'fromAnchor' or {calendarAligned: {weekStart}}` }
+    const al = rec['calendarAligned'] as Record<string, unknown>
+    for (const k of Object.keys(al)) if (k !== 'weekStart') return { code: 'badOverride', option: `adherenceWeeks.calendarAligned.${k}`, value: al[k], message: `no field ${k} in calendarAligned (weekStart)` }
+  }
+  if (aw !== 'fromAnchor' && !WEEKDAYS.includes(aw.calendarAligned?.weekStart))
+    return { code: 'badOverride', option: 'adherenceWeeks.calendarAligned.weekStart', value: aw.calendarAligned?.weekStart, message: `no weekday ${String(aw.calendarAligned?.weekStart)}` }
   if (overrides.adherenceWeeks !== undefined && JSON.stringify(overrides.adherenceWeeks) === JSON.stringify(p.adherenceWeeks ?? 'fromAnchor'))
-    return { code: 'badOverride', option: 'adherenceWeeks', value: `${JSON.stringify(overrides.adherenceWeeks)} (the program's own value: omit the override)` }
+    return { code: 'badOverride', option: 'adherenceWeeks', value: overrides.adherenceWeeks, message: `the program's own value: omit the override` }
   return { instance, anchor, activatedOn, frequency, slots, lapseAfterDays: lapse, ...(aw === 'fromAnchor' ? {} : { adherenceWeeks: aw }), tracked }
 }
 

@@ -132,7 +132,14 @@ t('', 'Y3: the registry holds BOTH versions of each touched definition: @1 is th
   eq(reg.schemes.get('lib/double-progression@1')!.defaults, undefined, '@1 has no defaults: lo/hi were literals')
   assert(reg.schemes.get('lib/double-progression@2')!.defaults?.['lo'], '@2 carries the promoted defaults')
   eq(P.gzclpT1Program.def.slots['squat']!.scheme.version, 2, 'the corpus program rebinds to @2')
-  assert(PO.hashOf(P.gzclpT1Program.def) !== PO.hashOf({ ...P.gzclpT1Program.def, slots: Object.fromEntries(Object.entries(P.gzclpT1Program.def.slots).map(([k, b]) => [k, { ...b, scheme: { ...b.scheme, version: 1 } }])) } as never), 'the rebinding moves the program hash honestly')
+  // Z1 corrects the old pin here: the rebinding is no longer an in-place
+  // hash move under a constant program version — the rebound program is a
+  // NEW version (@2), and @1 keeps its published body, bound to the @1
+  // scheme, byte-for-byte (progs-v1.ts; cmp-progs-v1.ts is the independent
+  // byte-check against the recorded kits).
+  eq(P.gzclpT1Program.def.ref.version, 2, 'the rebound program is a new version')
+  eq(reg.programs.get('prog/gzclp-t1@1')!.slots['squat']!.scheme.version, 1, '@1 still binds the @1 scheme')
+  assert(PO.hashOf(reg.programs.get('prog/gzclp-t1@2')!) !== PO.hashOf(reg.programs.get('prog/gzclp-t1@1')!), 'the two versions hash apart')
 })
 
 // ── Y4: one form per meaning, enforced for every option ─────────────────────
@@ -156,7 +163,7 @@ t('', 'Y4 set-valued options have ONE spelling: duplicates and non-calendar orde
       version: 1,
       says: 'x',
       params: {},
-      calendar: { weeks: ['train', 'deload', 'test'], repeat: 'cycle' },
+      calendar: { weeks: ['train', 'deload', 'taper', 'test'], repeat: 'cycle' },
       grids: { load: kg(2.5) },
       muscles: ['quads'],
       slots: () => ({ squat: P.linearGated.bind({ lift: SQUAT, sets: sets(3), reps: reps(5), inc: kg(2.5), backoff: pct(90), stalls: num(3) }, { muscles: { quads: 1 } }) }),
@@ -165,10 +172,14 @@ t('', 'Y4 set-valued options have ONE spelling: duplicates and non-calendar orde
       ...(strip ? { stripIntensifierOn: strip as never } : {}),
     }).def
   assert(progErrors({ ...mk(), stripIntensifierOn: ['deload', 'deload'] as never }).some((c) => c.startsWith('literalDomain@stripIntensifierOn')), 'a duplicate role')
-  assert(progErrors({ ...mk(), stripIntensifierOn: ['test', 'deload'] as never }).some((c) => c.startsWith('literalDomain@stripIntensifierOn')), 'an order off the calendar’s')
-  eq(progErrors({ ...mk(), stripIntensifierOn: ['deload', 'test'] as never }), [], 'the canonical spelling (calendar order) checks clean')
-  eq(PO.hashOf(mk(['test', 'deload'])), PO.hashOf(mk(['deload', 'test'])), 'the embedding canonicalizes both spellings to one IR')
-  eq(mk(['deload', 'deload', 'test'])!.stripIntensifierOn, ['deload', 'test'], 'and drops duplicates')
+  assert(progErrors({ ...mk(), stripIntensifierOn: ['taper', 'deload'] as never }).some((c) => c.startsWith('literalDomain@stripIntensifierOn')), 'an order off the calendar’s')
+  eq(progErrors({ ...mk(), stripIntensifierOn: ['deload', 'taper'] as never }), [], 'the canonical spelling (calendar order) checks clean')
+  // Z2: the one-form comparison is IN EFFECT — the default set intersected
+  // with the calendar's roles spells omission, whatever the calendar.
+  assert(progErrors({ ...mk(), stripIntensifierOn: ['deload', 'taper', 'test'] as never }).some((c) => c.startsWith('literalDomain@stripIntensifierOn')), 'the default set in effect is a second form')
+  eq(PO.hashOf(mk(['taper', 'deload'])), PO.hashOf(mk(['deload', 'taper'])), 'the embedding canonicalizes both spellings to one IR')
+  eq(mk(['deload', 'deload', 'taper'])!.stripIntensifierOn, ['deload', 'taper'], 'and drops duplicates')
+  eq(mk(['test', 'deload', 'taper'])!.stripIntensifierOn, undefined, 'and drops the default set in effect (Z2)')
   const s = reg.schemes.get('lib/double-progression@2')!
   assert(codes(CD.checkScheme({ ...s, ref: { ...s.ref, id: 'lib/dp-e' as never }, defaults: {} }, reg)).some((c) => c.startsWith('literalDomain@defaults')), 'defaults {} spells no defaults: refused')
 })

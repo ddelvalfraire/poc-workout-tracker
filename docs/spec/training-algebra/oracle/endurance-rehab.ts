@@ -10,6 +10,7 @@ import { add, and, byVerdict, days, exercise, ge, gt, iff, kg, known, le, list1,
 import { atMost, exportState, freq, macro, per, phase, program, range, scaleSets, scheme, sel, session, set, single, tempo, type StepBuilder } from './structure'
 import { localDay } from './time'
 import { HR_TEMPO_V1, PAIN_GATED_V1 } from './defs-v1'
+import { ACHILLES_LOADING_V1, ACHILLES_RETURN_V1, HR_TEMPO_BLOCK_V1 } from './progs-v1'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // (i) Couch to 5K (NHS): a ladder of nine week-sessions
@@ -152,7 +153,10 @@ export const easyRun = scheme({
 
 export const hrTempoBlock = program({
   id: 'prog/hr-tempo-block',
-  version: 1,
+  // @2: the interrogation repair round's rebinding (Z1) — the slots moved
+  // to the @2 schemes, so the program republishes; @1 is the pre-cfgfix
+  // body, restored in progs-v1.ts.
+  version: 2,
   says: 'A threshold block: one tempo run, two easy runs and a long run each week, hard runs at least two days apart',
   params: {},
   calendar: { weeks: ['train', 'train', 'train', 'deload'], repeat: 'cycle' },
@@ -248,7 +252,10 @@ export const achillesIsometric = program({
 
 export const achillesLoading = program({
   id: 'prog/achilles-loading',
-  version: 1,
+  // @2: the interrogation repair round's rebinding (Z1) — the slots moved
+  // to the @2 schemes, so the program republishes; @1 is the pre-cfgfix
+  // body, restored in progs-v1.ts.
+  version: 2,
   says: 'Achilles loading: pain-monitored eccentric heel drops, twice a day',
   params: {},
   calendar: { weeks: ['train'], repeat: 'cycle' },
@@ -261,7 +268,8 @@ export const achillesLoading = program({
 
 export const achillesReturn = macro({
   id: 'macro/achilles-return',
-  version: 1,
+  // @2: its phases bind the @2 programs (Z1); @1 restored in progs-v1.ts.
+  version: 2,
   says: 'Achilles return: isometrics until morning pain settles (no earlier than two weeks after the start), then pain-monitored loading',
   anchor: { k: 'startOn', date: localDay('2026-09-14') },
   drift: 'slide',
@@ -276,5 +284,5 @@ export const achillesReturn = macro({
   ],
 })
 
-export const PUBLISHED = [c25k, couchTo5k, HR_TEMPO_V1, hrTempo, easyRun, hrTempoBlock, isoHold, PAIN_GATED_V1, painGated, achillesIsometric, achillesLoading, achillesReturn] as const
+export const PUBLISHED = [c25k, couchTo5k, HR_TEMPO_V1, hrTempo, easyRun, HR_TEMPO_BLOCK_V1, hrTempoBlock, isoHold, PAIN_GATED_V1, painGated, achillesIsometric, ACHILLES_LOADING_V1, achillesLoading, ACHILLES_RETURN_V1, achillesReturn] as const
 export type { Ex }

@@ -45,7 +45,7 @@
   "squat": {
    "scheme": {
     "id": "lib/gzclp-t1",
-    "version": 2
+    "version": 1
    },
    "args": {
     "lift": {
@@ -86,7 +86,7 @@
   "bench": {
    "scheme": {
     "id": "lib/gzclp-t1",
-    "version": 2
+    "version": 1
    },
    "args": {
     "lift": {
@@ -132,7 +132,7 @@
   "dead": {
    "scheme": {
     "id": "lib/gzclp-t1",
-    "version": 2
+    "version": 1
    },
    "args": {
     "lift": {
@@ -178,7 +178,7 @@
   "press": {
    "scheme": {
     "id": "lib/gzclp-t1",
-    "version": 2
+    "version": 1
    },
    "args": {
     "lift": {

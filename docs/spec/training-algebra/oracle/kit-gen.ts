@@ -19,6 +19,7 @@ import './patfix.test'
 import './config.test'
 import './cfgfix.test'
 import './units.test'
+import './ufx.test'
 
 declare const process: { env: Record<string, string | undefined>; exitCode?: number }
 const out = process.env['KIT_OUT']

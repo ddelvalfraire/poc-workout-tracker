@@ -126,8 +126,11 @@ function ownNumbers(def: ProgramDef): Set<string> {
 const STRUCTURAL = [/#\d+/g, /rule \d+/g, /\(from 0[,)]/g, /\(\d+\) /g, /\d+-day window/g, /from your start day/g]
 const strip = (s: string) => STRUCTURAL.reduce((a, r) => a.replace(r, ''), s)
 
+// Test names carry the VERSION: since Z1 both versions of the rebound
+// programs are published, and two tests of one name would record into one
+// fixture file.
 for (const run of RUNS) {
-  t('A L8', `A. ${run.def.ref.id}: every literal the evaluator read shows its number in the description`, () => {
+  t('A L8', `A. ${keyOf(run.def.ref)}: every literal the evaluator read shows its number in the description`, () => {
     const prose = new Set(tokens(proseOf(run.def).join('\n')))
     const visited = new Set<Term>()
     run.traces.forEach((tr) => visit(tr, visited))
@@ -143,7 +146,7 @@ for (const run of RUNS) {
     assert(read >= 2, `only ${read} literals read: the check would be vacuous`)
     eq([...new Set(missing)], [], 'numbers the evaluator used but the prose never states')
   })
-  t('A L8', `A. ${run.def.ref.id}: every number the description prints comes from the definition`, () => {
+  t('A L8', `A. ${keyOf(run.def.ref)}: every number the description prints comes from the definition`, () => {
     const own = ownNumbers(run.def)
     // Line 0 is the generated headline (structural counts); the "Together"
     // lines state COMPOSED numbers, which check C holds to the evaluator.
@@ -166,7 +169,7 @@ function termNumbersRead(tr: Trace, out: string[], args: Record<string, Term>) {
   tr.kids.forEach((k, i) => (lib && i === tr.kids.length - 1 ? undefined : termNumbersRead(k, out, args)))
 }
 for (const run of RUNS)
-  t('A L8 D3', `A. ${run.def.ref.id}: term by term, each plan and handler states every number its own evaluation read`, () => {
+  t('A L8 D3', `A. ${keyOf(run.def.ref)}: term by term, each plan and handler states every number its own evaluation read`, () => {
     const bad: string[] = []
     const pc = describeCtx(run.def, cx)
     const proseFor = new Map<string, string>()
@@ -207,6 +210,10 @@ function factNumbers(s: IssuedSession): Set<string> {
   const out = new Set<string>()
   const add = (txt: string) => tokens(clocks(txt)).forEach((x) => out.add(x))
   for (const sl of s.slots) {
+    // Z12: the prose renders a declaring slot grid-native (U-L2), so the
+    // fact side must read the same per-slot display or the net goes blind
+    // to slot grids.
+    const display = { ...s.stamp.display, ...s.stamp.slotGrids?.[sl.slot]?.display }
     const blocks = new Set<string>()
     for (const st of sl.steps) {
       const c = st.count
@@ -220,7 +227,7 @@ function factNumbers(s: IssuedSession): Set<string> {
           const fx = f?.k === 'open' ? f.planned : f
           if (fx?.k !== 'fixed' || fx.v.b === 'open') continue
           const b = fx.v
-          for (const v of b.b === 'range' ? [b.min, b.max] : [b.v]) add(numText(reg, m, v, s.stamp.display))
+          for (const v of b.b === 'range' ? [b.min, b.max] : [b.v]) add(numText(reg, m, v, display))
         }
         if (tg.restSec !== null) add(tg.restSec >= 60 ? `${tg.restSec / 60}` : `${tg.restSec}`)
         if (tg.tempo) add(tg.tempo.join(' '))
@@ -232,7 +239,7 @@ function factNumbers(s: IssuedSession): Set<string> {
   return out
 }
 for (const run of RUNS)
-  t('B EC-187 L6', `B. ${run.def.ref.id}: every number in each issued session’s prose is a number of that fact, and every one appears`, () => {
+  t('B EC-187 L6', `B. ${keyOf(run.def.ref)}: every number in each issued session’s prose is a number of that fact, and every one appears`, () => {
     const bad: string[] = []
     for (const s of run.issued) {
       const said = new Set(tokens(clocks(sessionText(s, reg).slice(1).join('\n'))))

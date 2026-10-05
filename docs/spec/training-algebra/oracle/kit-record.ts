@@ -27,7 +27,9 @@ console.log = () => {}
 /** At most this many fixtures of one of these operations per test: L1's 200
  *  random argument sets per library function, and the policy-composition
  *  sweeps, are sampled rather than exported whole. Every other call is kept. */
-const CAP: Partial<Record<Op, number>> = { 'evaluate.evaluate': 24, 'issue.applyUse': 16 }
+// judge.verdictOf joined for the Z4/Z9 property sweeps (400 seeded probes
+// each): the kit records a healthy sample, not the whole sweep.
+const CAP: Partial<Record<Op, number>> = { 'evaluate.evaluate': 24, 'issue.applyUse': 16, 'judge.verdictOf': 48 }
 /** Outputs below this size are inlined rather than shared by `$ref`. */
 const REF_MIN = 400
 

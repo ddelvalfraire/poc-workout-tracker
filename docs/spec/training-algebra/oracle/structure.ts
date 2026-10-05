@@ -77,7 +77,7 @@ import {
 } from './algebra'
 import { METRIC_DECLS, type Enums, type FactId, type Facts, type LoggingType, type MetricId, type Metrics } from './registry'
 import { DEFAULT_LAPSE_DAYS, type AdherenceWeeks, type CalQuery, type Drift, type Frequency, type LocalDay, type Measure, type Period, type Rotation, type Selector } from './time'
-import { canonicalStrip, STRIP_DEFAULT, VOLUME_DEFAULTS } from './options'
+import { canonicalStrip, DEFAULT_E1RM_FORMULA, STRIP_DEFAULT, VOLUME_DEFAULTS } from './options'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // §1 Set and session formers
@@ -821,7 +821,7 @@ function declaredOptions(spec: {
   staleness?: Partial<Record<string, number>>
 }, calendarWeeks?: readonly WeekRole[]): Pick<ProgramDef, 'e1rm' | 'adherenceWeeks' | 'volumeWeights' | 'stripIntensifierOn' | 'ties' | 'staleness'> {
   const out: ReturnType<typeof declaredOptions> = {}
-  if (spec.e1rm && !(spec.e1rm.formula === 'epley' && spec.e1rm.maxReps === undefined))
+  if (spec.e1rm && !(spec.e1rm.formula === DEFAULT_E1RM_FORMULA && spec.e1rm.maxReps === undefined))
     out.e1rm = { formula: spec.e1rm.formula, ...(spec.e1rm.maxReps !== undefined ? { maxReps: spec.e1rm.maxReps } : {}) }
   if (spec.adherenceWeeks && spec.adherenceWeeks !== 'fromAnchor') out.adherenceWeeks = spec.adherenceWeeks
   const vw = {
@@ -830,9 +830,11 @@ function declaredOptions(spec: {
   }
   if (Object.keys(vw).length) out.volumeWeights = vw
   // The embedding canonicalizes a role list to THE one spelling (Y4): each
-  // role once, in calendar declaration order; the default set drops.
+  // role once, in calendar declaration order; a set equal IN EFFECT to the
+  // default (intersected with the calendar's roles, Z2) drops.
   const strip = spec.stripIntensifierOn && calendarWeeks ? canonicalStrip(spec.stripIntensifierOn, calendarWeeks) : spec.stripIntensifierOn && [...new Set(spec.stripIntensifierOn)]
-  if (strip && [...strip].sort().join() !== [...STRIP_DEFAULT].sort().join()) out.stripIntensifierOn = strip as WeekRole[]
+  const stripDefaultInEffect = calendarWeeks ? STRIP_DEFAULT.filter((r) => (calendarWeeks as readonly string[]).includes(r)) : STRIP_DEFAULT
+  if (strip && [...strip].sort().join() !== [...stripDefaultInEffect].sort().join()) out.stripIntensifierOn = strip as WeekRole[]
   if (spec.ties === 'up') out.ties = 'up'
   if (spec.staleness && Object.keys(spec.staleness).length) out.staleness = Object.fromEntries(Object.entries(spec.staleness).filter(([, v]) => v !== undefined)) as Record<string, number>
   return out

@@ -11,8 +11,9 @@
 #      (weekbasis.test.ts), the correctness interrogation round's
 #      regressions (patfix.test.ts), the configurability round's
 #      declared options (config.test.ts), the configurability fix
-#      round's regressions (cfgfix.test.ts) and the units addendum
-#      (units.test.ts)
+#      round's regressions (cfgfix.test.ts), the units addendum
+#      (units.test.ts) and the interrogation repair round's regressions
+#      (ufx.test.ts, with the Z4/Z9 monotonicity properties)
 #   6. conformance: publication with examples evaluated, the capability matrix,
 #      the checker suite, and the prose-versus-evaluation differential
 #   7. the test-plan disposition is complete and matches what ran
@@ -57,21 +58,43 @@ pat=$(QUIET=1 "$BIN/tsx" patfix.test.ts) || { echo "$pat"; exit 1; }
 cfg=$(QUIET=1 "$BIN/tsx" config.test.ts) || { echo "$cfg"; exit 1; }
 cff=$(QUIET=1 "$BIN/tsx" cfgfix.test.ts) || { echo "$cff"; exit 1; }
 uni=$(QUIET=1 "$BIN/tsx" units.test.ts) || { echo "$uni"; exit 1; }
-echo "5. properties: $(grep -c "^t('" semantics.test.ts) former tests, $(grep -c "^t('" laws.test.ts) law tests, $(grep -c "^t('" hardening.test.ts) oracle-hardening tests, $(grep -c "^t('" coverage.test.ts) fixture-coverage tests, $(grep -c "^t('" semfix.test.ts) semantics-review regressions, $(grep -c "^t('" weekbasis.test.ts) weekly-basis tests, $(grep -c "^t('" patfix.test.ts) correctness-round regressions, $(grep -c "^t('" config.test.ts) configurability-round tests, $(grep -c "^t('" cfgfix.test.ts) configurability-fix regressions and $(grep -c "^t('" units.test.ts) units-addendum tests pass (semantics, laws, hardening, coverage, semfix, weekbasis, patfix, config, cfgfix, units)"
+ufx=$(QUIET=1 "$BIN/tsx" ufx.test.ts) || { echo "$ufx"; exit 1; }
+echo "5. properties: $(grep -c "^t('" semantics.test.ts) former tests, $(grep -c "^t('" laws.test.ts) law tests, $(grep -c "^t('" hardening.test.ts) oracle-hardening tests, $(grep -c "^t('" coverage.test.ts) fixture-coverage tests, $(grep -c "^t('" semfix.test.ts) semantics-review regressions, $(grep -c "^t('" weekbasis.test.ts) weekly-basis tests, $(grep -c "^t('" patfix.test.ts) correctness-round regressions, $(grep -c "^t('" config.test.ts) configurability-round tests, $(grep -c "^t('" cfgfix.test.ts) configurability-fix regressions, $(grep -c "^t('" units.test.ts) units-addendum tests and $(grep -c "^t('" ufx.test.ts) repair-round regressions pass (semantics, laws, hardening, coverage, semfix, weekbasis, patfix, config, cfgfix, units, ufx)"
 
 conf=$(QUIET=1 "$BIN/tsx" conformance.ts) || { echo "$conf"; exit 1; }
 echo "6. conformance: $(grep -c "^t('" conformance.ts) publication/matrix/checker tests and $(QUIET=1 "$BIN/tsx" -e "import { RESULTS } from './testkit'; import('./differential').then(() => console.log(RESULTS.filter((r) => r.suite === 'differential').length))") prose-vs-evaluation checks pass (conformance.ts, differential.ts)"
 
 QUIET=1 "$BIN/tsx" dispose.ts
 
-# Step 8 (Y13): generate and CHECK in the per-run directory, then sync the
-# shared handoff only on success, so concurrent runs never see a half kit.
+# Step 8 (Y13 + Z13): generate and CHECK in the per-run directory, then
+# publish ATOMICALLY: a lock directory (mkdir is atomic) serializes
+# publishers, and the shared handoff is replaced by directory rename, never
+# written into in place — a reader can no longer catch a half-synced kit
+# mid-rsync, and two publishers can no longer interleave.
 kit="$(cd .. && pwd)/kit"
+lockdir="$kit.lock"
+newkit=""
+locked=0
+trap 'rm -rf "$tmp" "$gen" "$newkit"; [ "$locked" = 1 ] && rmdir "$lockdir" 2>/dev/null || true' EXIT
 cp ./*.ts tsconfig.json "$gen/"
 "$BIN/tsx" kit-verify.ts tap "$gen"
 out="$gen/kit"
 mkdir -p "$out"
 (cd "$gen" && QUIET=1 KIT_OUT="$out" "$BIN/tsx" kit-gen.ts)
 QUIET=1 "$BIN/tsx" kit-verify.ts check "$out"
-mkdir -p "$kit"
-rsync -a --delete "$out/" "$kit/"
+tries=0
+until mkdir "$lockdir" 2>/dev/null; do
+  tries=$((tries + 1))
+  [ "$tries" -gt 600 ] && { echo "8. handoff kit: lock $lockdir held too long" >&2; exit 1; }
+  sleep 0.5
+done
+locked=1
+newkit="$kit.new.$$"
+rsync -a "$out/" "$newkit/"
+oldkit="$kit.old.$$"
+[ -d "$kit" ] && mv "$kit" "$oldkit"
+mv "$newkit" "$kit"
+newkit=""
+rm -rf "$oldkit"
+rmdir "$lockdir"
+locked=0

@@ -5393,6 +5393,30 @@
       "value"
      ],
      "additionalProperties": false
+    },
+    {
+     "type": "object",
+     "properties": {
+      "code": {
+       "const": "republishChanged"
+      },
+      "path": {
+       "$ref": "#/$defs/Path"
+      },
+      "message": {
+       "type": "string"
+      },
+      "ref": {
+       "$ref": "#/$defs/DefRef"
+      }
+     },
+     "required": [
+      "code",
+      "path",
+      "message",
+      "ref"
+     ],
+     "additionalProperties": false
     }
    ]
   },
@@ -5425,21 +5449,16 @@
       "option": {
        "type": "string"
       },
-      "value": {
-       "anyOf": [
-        {
-         "$ref": "#/$defs/Number"
-        },
-        {
-         "type": "string"
-        }
-       ]
+      "value": {},
+      "message": {
+       "type": "string"
       }
      },
      "required": [
       "code",
       "option",
-      "value"
+      "value",
+      "message"
      ],
      "additionalProperties": false
     },
@@ -9041,6 +9060,9 @@
     },
     "alignedWeeks": {
      "type": "string"
+    },
+    "effectiveFormula": {
+     "$ref": "#/$defs/E1rmFormula"
     }
    },
    "required": [
@@ -12218,44 +12240,7 @@
         {
          "$ref": "#/$defs/LocalDay"
         },
-        {
-         "type": "object",
-         "properties": {
-          "lapseAfterDays": {
-           "$ref": "#/$defs/Number"
-          },
-          "adherenceWeeks": {
-           "anyOf": [
-            {
-             "const": "fromAnchor"
-            },
-            {
-             "type": "object",
-             "properties": {
-              "calendarAligned": {
-               "type": "object",
-               "properties": {
-                "weekStart": {
-                 "type": "string"
-                }
-               },
-               "required": [
-                "weekStart"
-               ],
-               "additionalProperties": false
-              }
-             },
-             "required": [
-              "calendarAligned"
-             ],
-             "additionalProperties": false
-            }
-           ]
-          }
-         },
-         "required": [],
-         "additionalProperties": false
-        }
+        {}
        ],
        "minItems": 5,
        "maxItems": 6,
@@ -12300,44 +12285,7 @@
             "4": {
              "$ref": "#/$defs/LocalDay"
             },
-            "5": {
-             "type": "object",
-             "properties": {
-              "lapseAfterDays": {
-               "$ref": "#/$defs/Number"
-              },
-              "adherenceWeeks": {
-               "anyOf": [
-                {
-                 "const": "fromAnchor"
-                },
-                {
-                 "type": "object",
-                 "properties": {
-                  "calendarAligned": {
-                   "type": "object",
-                   "properties": {
-                    "weekStart": {
-                     "type": "string"
-                    }
-                   },
-                   "required": [
-                    "weekStart"
-                   ],
-                   "additionalProperties": false
-                  }
-                 },
-                 "required": [
-                  "calendarAligned"
-                 ],
-                 "additionalProperties": false
-                }
-               ]
-              }
-             },
-             "required": [],
-             "additionalProperties": false
-            }
+            "5": {}
            },
            "required": [],
            "additionalProperties": false
@@ -17379,44 +17327,7 @@
         {
          "$ref": "#/$defs/LocalDay"
         },
-        {
-         "type": "object",
-         "properties": {
-          "lapseAfterDays": {
-           "$ref": "#/$defs/Number"
-          },
-          "adherenceWeeks": {
-           "anyOf": [
-            {
-             "const": "fromAnchor"
-            },
-            {
-             "type": "object",
-             "properties": {
-              "calendarAligned": {
-               "type": "object",
-               "properties": {
-                "weekStart": {
-                 "type": "string"
-                }
-               },
-               "required": [
-                "weekStart"
-               ],
-               "additionalProperties": false
-              }
-             },
-             "required": [
-              "calendarAligned"
-             ],
-             "additionalProperties": false
-            }
-           ]
-          }
-         },
-         "required": [],
-         "additionalProperties": false
-        }
+        {}
        ],
        "minItems": 5,
        "maxItems": 6,
@@ -17461,44 +17372,7 @@
             "4": {
              "$ref": "#/$defs/LocalDay"
             },
-            "5": {
-             "type": "object",
-             "properties": {
-              "lapseAfterDays": {
-               "$ref": "#/$defs/Number"
-              },
-              "adherenceWeeks": {
-               "anyOf": [
-                {
-                 "const": "fromAnchor"
-                },
-                {
-                 "type": "object",
-                 "properties": {
-                  "calendarAligned": {
-                   "type": "object",
-                   "properties": {
-                    "weekStart": {
-                     "type": "string"
-                    }
-                   },
-                   "required": [
-                    "weekStart"
-                   ],
-                   "additionalProperties": false
-                  }
-                 },
-                 "required": [
-                  "calendarAligned"
-                 ],
-                 "additionalProperties": false
-                }
-               ]
-              }
-             },
-             "required": [],
-             "additionalProperties": false
-            }
+            "5": {}
            },
            "required": [],
            "additionalProperties": false

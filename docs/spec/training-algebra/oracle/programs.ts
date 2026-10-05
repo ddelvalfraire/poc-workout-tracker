@@ -100,6 +100,7 @@ import {
 } from './structure'
 import { localDay } from './time'
 import { DOUBLE_PROGRESSION_V1, GZCLP_T1_V1, W531_JOKERS_V1 } from './defs-v1'
+import { GZCLP_T1_PROG_V1, LEGS_3X_V1, OPT_LOADED_V1, OPT_MACRO_V1, OPT_POWER_V1, OPT_STRENGTH_ENDURANCE_V1 } from './progs-v1'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Prelude: named, templated, example-checked functions (D2)
@@ -349,6 +350,25 @@ export const apreTopBackoff = scheme({
   },
 })
 
+/** The slot-grid regression program (U3, promoted to the corpus in Z12 so
+ *  the prose-vs-evaluation differential sees slot grids): a kg default grid
+ *  with an lb slot grid and the increments CROSSED. */
+export const mixedUnits = program({
+  id: 'prog/mixed-units',
+  version: 1,
+  says: 'Mixed units: a kg default grid with an lb slot grid, increments crossed',
+  params: {},
+  calendar: { weeks: ['train'], repeat: 'cycle' },
+  grids: { load: kg(2.5) },
+  muscles: ['quads', 'chest'],
+  slots: () => ({
+    machine: linearGated.bind({ lift: SQUAT, sets: sets(3), reps: reps(5), inc: lb(5), backoff: pct(90), stalls: num(3) }, { muscles: { quads: 1 } }),
+    barbell: linearGated.bind({ lift: BENCH, sets: sets(3), reps: reps(5), inc: kg(2.5), backoff: pct(90), stalls: num(3) }, { muscles: { chest: 1 }, grids: { load: lb(5) } }),
+  }),
+  days: { A: [single('machine'), single('barbell')] },
+  rotation: { k: 'alternate', days: ['A'], perWeek: 2 },
+})
+
 // ═══════════════════════════════════════════════════════════════════════════
 // (c) 5/3/1 with Boring But Big at 50% of the main lift's TM
 // ═══════════════════════════════════════════════════════════════════════════
@@ -536,7 +556,10 @@ export const gzclpT1 = scheme({
 
 export const gzclpT1Program = program({
   id: 'prog/gzclp-t1',
-  version: 1,
+  // @2: the interrogation repair round's rebinding (Z1) — the slots moved
+  // to the @2 schemes, so the program republishes; @1 is the pre-cfgfix
+  // body, restored in progs-v1.ts.
+  version: 2,
   says: 'GZCLP T1 lifts on an A/B rotation, three days a week',
   params: { squatStart: ty.opt(ty.q('mass')) },
   calendar: { weeks: ['train'], repeat: 'cycle' },
@@ -789,7 +812,10 @@ export const optStabilization = program({
 
 export const optStrengthEndurance = program({
   id: 'prog/opt-strength-endurance',
-  version: 1,
+  // @2: the interrogation repair round's rebinding (Z1) — the slots moved
+  // to the @2 schemes, so the program republishes; @1 is the pre-cfgfix
+  // body, restored in progs-v1.ts.
+  version: 2,
   says: 'OPT Phase 2: a strength lift supersetted with its stabilization partner',
   params: { benchStart: ty.opt(ty.q('mass')), rung: ty.q('one') },
   calendar: { weeks: ['train', 'train', 'train', 'train'], repeat: 'once' },
@@ -805,7 +831,10 @@ export const optStrengthEndurance = program({
 
 export const optLoaded = program({
   id: 'prog/opt-loaded',
-  version: 1,
+  // @2: the interrogation repair round's rebinding (Z1) — the slots moved
+  // to the @2 schemes, so the program republishes; @1 is the pre-cfgfix
+  // body, restored in progs-v1.ts.
+  version: 2,
   says: 'OPT loaded phase: one main lift per session, character set by the phase',
   params: { benchStart: ty.opt(ty.q('mass')) },
   calendar: { weeks: ['train', 'train', 'train', 'train'], repeat: 'once' },
@@ -818,7 +847,10 @@ export const optLoaded = program({
 
 export const optPower = program({
   id: 'prog/opt-power',
-  version: 1,
+  // @2: the interrogation repair round's rebinding (Z1) — the slots moved
+  // to the @2 schemes, so the program republishes; @1 is the pre-cfgfix
+  // body, restored in progs-v1.ts.
+  version: 2,
   says: 'OPT Phase 5: heavy strength set supersetted with an explosive partner',
   params: { benchStart: ty.opt(ty.q('mass')) },
   calendar: { weeks: ['train', 'train', 'train', 'train'], repeat: 'once' },
@@ -837,7 +869,8 @@ const prevBench = (prev: PrevView) => prev.state('bench', 'load', ty.opt(ty.q('m
 
 export const optMacro = macro({
   id: 'macro/opt-16wk',
-  version: 1,
+  // @2: its phases bind the @2 programs (Z1); @1 restored in progs-v1.ts.
+  version: 2,
   says: 'NASM OPT: stabilization until the ladders are climbed (4–6 weeks), then strength endurance, hypertrophy, maximal strength and power, each phase seeded from the last',
   anchor: { k: 'startOn', date: localDay('2026-11-02') },
   drift: 'slide',
@@ -942,7 +975,10 @@ export const upperHypertrophy = program({
 
 export const legsFrequency = program({
   id: 'prog/legs-3x',
-  version: 1,
+  // @2: the interrogation repair round's rebinding (Z1) — the slots moved
+  // to the @2 schemes, so the program republishes; @1 is the pre-cfgfix
+  // body, restored in progs-v1.ts.
+  version: 2,
   says: 'A three-day split that trains a leg muscle every session, with attendance counted for legs and for workouts',
   params: {},
   calendar: { weeks: ['train'], repeat: 'cycle' },
@@ -972,12 +1008,14 @@ export const PUBLISHED = [
   withTempo,
   linearGated,
   linear3x5,
+  mixedUnits,
   apreTopBackoff,
   w531,
   bbb,
   fiveThreeOneBBB,
   GZCLP_T1_V1,
   gzclpT1,
+  GZCLP_T1_PROG_V1,
   gzclpT1Program,
   rpSlot,
   rpWeeklyTarget,
@@ -989,14 +1027,19 @@ export const PUBLISHED = [
   fixedWork,
   repShape,
   optStabilization,
+  OPT_STRENGTH_ENDURANCE_V1,
   optStrengthEndurance,
+  OPT_LOADED_V1,
   optLoaded,
+  OPT_POWER_V1,
   optPower,
+  OPT_MACRO_V1,
   optMacro,
   W531_JOKERS_V1,
   w531Jokers,
   restPauseDc,
   clusterStrength,
   upperHypertrophy,
+  LEGS_3X_V1,
   legsFrequency,
 ] as const
