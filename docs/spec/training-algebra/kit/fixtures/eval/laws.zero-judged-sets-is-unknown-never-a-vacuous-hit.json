@@ -1,3 +1,3 @@
 {"source": {"suite":"laws","test":"zero judged sets is UNKNOWN, never a vacuous hit","ids":["BV-46"]}, "fixtures": [
-{"op":"judge.verdictOf","args":[{"reg":{"$registry":"reg-3a98473c"},"slots":[],"performed":{},"facts":[],"groupScores":{},"week":0,"primary":{"$fn":"arg0.primary"}},"working","floor"],"world":{"arg0.primary":[]},"expected":{"ret":"unknown"}}
+{"op":"judge.verdictOf","args":[{"reg":{"$registry":"reg-e48115a7"},"slots":[],"performed":{},"facts":[],"groupScores":{},"week":0,"primary":{"$fn":"arg0.primary"}},"working","floor"],"world":{"arg0.primary":[]},"expected":{"ret":"unknown"}}
 ]}

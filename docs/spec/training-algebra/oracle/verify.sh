@@ -9,14 +9,18 @@
 #      fixture-coverage gaps (coverage.test.ts), the semantics review
 #      round's regressions (semfix.test.ts), the weekly basis options
 #      (weekbasis.test.ts), the correctness interrogation round's
-#      regressions (patfix.test.ts) and the configurability round's
-#      declared options (config.test.ts)
+#      regressions (patfix.test.ts), the configurability round's
+#      declared options (config.test.ts), the configurability fix
+#      round's regressions (cfgfix.test.ts) and the units addendum
+#      (units.test.ts)
 #   6. conformance: publication with examples evaluated, the capability matrix,
 #      the checker suite, and the prose-versus-evaluation differential
 #   7. the test-plan disposition is complete and matches what ran
-#   8. the language handoff kit (../kit) is regenerated from the suites,
-#      every file validates against its ir-schema.json, and every fixture
-#      replays on the oracle to its stored output
+#   8. the language handoff kit (../kit) is regenerated from the suites into a
+#      PER-RUN directory, every file validates against its ir-schema.json and
+#      every fixture replays on the oracle to its stored output; only then is
+#      ../../handoff synced, so concurrent runs cannot race each other into a
+#      half-written kit
 set -euo pipefail
 cd "$(dirname "$0")"
 BIN=${BIN:-$(cd ../../../.. && pwd)/node_modules/.bin}
@@ -51,15 +55,23 @@ semf=$(QUIET=1 "$BIN/tsx" semfix.test.ts) || { echo "$semf"; exit 1; }
 wkb=$(QUIET=1 "$BIN/tsx" weekbasis.test.ts) || { echo "$wkb"; exit 1; }
 pat=$(QUIET=1 "$BIN/tsx" patfix.test.ts) || { echo "$pat"; exit 1; }
 cfg=$(QUIET=1 "$BIN/tsx" config.test.ts) || { echo "$cfg"; exit 1; }
-echo "5. properties: $(grep -c "^t('" semantics.test.ts) former tests, $(grep -c "^t('" laws.test.ts) law tests, $(grep -c "^t('" hardening.test.ts) oracle-hardening tests, $(grep -c "^t('" coverage.test.ts) fixture-coverage tests, $(grep -c "^t('" semfix.test.ts) semantics-review regressions, $(grep -c "^t('" weekbasis.test.ts) weekly-basis tests, $(grep -c "^t('" patfix.test.ts) correctness-round regressions and $(grep -c "^t('" config.test.ts) configurability-round tests pass (semantics, laws, hardening, coverage, semfix, weekbasis, patfix, config)"
+cff=$(QUIET=1 "$BIN/tsx" cfgfix.test.ts) || { echo "$cff"; exit 1; }
+uni=$(QUIET=1 "$BIN/tsx" units.test.ts) || { echo "$uni"; exit 1; }
+echo "5. properties: $(grep -c "^t('" semantics.test.ts) former tests, $(grep -c "^t('" laws.test.ts) law tests, $(grep -c "^t('" hardening.test.ts) oracle-hardening tests, $(grep -c "^t('" coverage.test.ts) fixture-coverage tests, $(grep -c "^t('" semfix.test.ts) semantics-review regressions, $(grep -c "^t('" weekbasis.test.ts) weekly-basis tests, $(grep -c "^t('" patfix.test.ts) correctness-round regressions, $(grep -c "^t('" config.test.ts) configurability-round tests, $(grep -c "^t('" cfgfix.test.ts) configurability-fix regressions and $(grep -c "^t('" units.test.ts) units-addendum tests pass (semantics, laws, hardening, coverage, semfix, weekbasis, patfix, config, cfgfix, units)"
 
 conf=$(QUIET=1 "$BIN/tsx" conformance.ts) || { echo "$conf"; exit 1; }
 echo "6. conformance: $(grep -c "^t('" conformance.ts) publication/matrix/checker tests and $(QUIET=1 "$BIN/tsx" -e "import { RESULTS } from './testkit'; import('./differential').then(() => console.log(RESULTS.filter((r) => r.suite === 'differential').length))") prose-vs-evaluation checks pass (conformance.ts, differential.ts)"
 
 QUIET=1 "$BIN/tsx" dispose.ts
 
+# Step 8 (Y13): generate and CHECK in the per-run directory, then sync the
+# shared handoff only on success, so concurrent runs never see a half kit.
 kit="$(cd .. && pwd)/kit"
 cp ./*.ts tsconfig.json "$gen/"
 "$BIN/tsx" kit-verify.ts tap "$gen"
-(cd "$gen" && QUIET=1 KIT_OUT="$kit" "$BIN/tsx" kit-gen.ts)
-QUIET=1 "$BIN/tsx" kit-verify.ts check "$kit"
+out="$gen/kit"
+mkdir -p "$out"
+(cd "$gen" && QUIET=1 KIT_OUT="$out" "$BIN/tsx" kit-gen.ts)
+QUIET=1 "$BIN/tsx" kit-verify.ts check "$out"
+mkdir -p "$kit"
+rsync -a --delete "$out/" "$kit/"

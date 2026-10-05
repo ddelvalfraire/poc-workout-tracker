@@ -71,7 +71,7 @@ import type { BoundIR, Cap, Clock, DefRef, Lit, RefKind, StepId, Term, Ty, Unit 
 import type { DimVec } from './units'
 import type { Enums, LoggingType, MetricId, Scale } from './registry'
 import type { AggEventKind, AnyDef, HitPolicy, SchemeDef, SlotEventKind, WeekRole, Writer } from './structure'
-import type { CalQuery, CalendarState, Due, InstanceStatus, LocalDay, Selector } from './time'
+import type { AdherenceWeeks, CalQuery, CalendarState, Due, InstanceStatus, LocalDay, Selector } from './time'
 
 const notImplemented = (what: string): never => {
   throw new Error(`not implemented: ${what}`)
@@ -165,6 +165,10 @@ export type IngestRefusal =
   /** A rebind to a scheme whose state declaration differs: the frozen grammar
    *  has no record sort, so a migration cannot be written; refused, never guessed. */
   | { code: 'rebindNeedsMigration'; slot: string; fields: string[] }
+  // new in the configurability fix round
+  /** An instance-activation override outside its domain, or one spelling the
+   *  program's own value (one form per meaning); returned typed, never thrown (Y9). */
+  | { code: 'badOverride'; option: string; value: number | string }
 
 /** The elaborated, content-addressed form: the ONLY input of every engine
  *  operation below. */
@@ -244,7 +248,7 @@ export type Absence =
   | { k: 'ownerCleared'; field: string }
   | { k: 'roleExcluded'; role: WeekRole } // a weekly read whose roles filter leaves this week out
   | { k: 'noUpcomingWeek' } //       an upcoming weekly read in a once calendar's final week
-  | { k: 'outsideFormulaDomain'; formula: string; reps: number } // an e1RM read whose effective reps the declared formula cannot estimate
+  | { k: 'outsideFormulaDomain'; formula: string; reps: number; cap?: number } // an e1RM read where NO logged set qualifies: out-of-domain sets are skipped (Y6), so this names the best offender, and `cap` when the program's declared maxReps was the binding limit
 
 /** An evaluation, node by node. `def` marks a named-definition boundary (the
  *  trace is cut there at intent zoom); `note` records a decision the value
@@ -356,9 +360,17 @@ export interface Stamp {
   phaseTransform: DefRef | null
   /** The quantization grids, canonical; resolution quantizes with them too. */
   grids: { load?: number; distance?: number }
+  /** U2: per-slot grid overrides, present only when a slot declares its own
+   *  grids: that slot's steps (canonical) and display units, exactly as the
+   *  sink issued under them; resolution reads the stamp, never re-deriving,
+   *  and the issued values' display unit IS the slot grid's unit (U-L2). */
+  slotGrids?: Record<string, { grids: { load?: number; distance?: number }; display: Partial<Record<string, Unit>> }>
   /** The program's declared tie direction for exact bounds (present only when
    *  'up'); resolution quantizes with it too, never re-deriving (C6). */
   ties?: 'up'
+  /** The program's declared estimator (present only when declared); live
+   *  resolution of an open field computes with it too, never re-deriving (Y7). */
+  e1rm?: { formula: string; maxReps?: number }
   /** The unit each metric displays in: the grid's unit where there is one. */
   display: Partial<Record<string, Unit>>
 }
@@ -417,6 +429,10 @@ export interface Instance {
   id: string
   anchor: LocalDay
   activatedOn: LocalDay
+  /** The activation overrides, recorded on the instance so a replay that
+   *  rebuilds the runtime from this record sees the SAME calendar spec and
+   *  window geometry as the original activation (Y9); omitted when none. */
+  overrides?: { lapseAfterDays?: number; adherenceWeeks?: AdherenceWeeks }
   /** The predecessor run whose exports seed this instance's imports. */
   predecessor: string | null
 }

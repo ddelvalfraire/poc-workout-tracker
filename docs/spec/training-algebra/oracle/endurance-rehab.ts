@@ -9,6 +9,7 @@
 import { add, and, byVerdict, days, exercise, ge, gt, iff, kg, known, le, list1, lt, lvl, max, min, mins, mul, no, nth, num, orElse, pct, q, reps, sec, sets, sub, ty, yes, type Expr, type Ex, type Opt, type PlanCap, type Q, type SessionT } from './algebra'
 import { atMost, exportState, freq, macro, per, phase, program, range, scaleSets, scheme, sel, session, set, single, tempo, type StepBuilder } from './structure'
 import { localDay } from './time'
+import { HR_TEMPO_V1, PAIN_GATED_V1 } from './defs-v1'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // (i) Couch to 5K (NHS): a ladder of nine week-sessions
@@ -105,11 +106,13 @@ const ofLthr = (c: { fact: (f: 'lthr') => Expr<Opt<Q<'heartRate'>>, 'fact'> }, p
 
 export const hrTempo = scheme({
   id: 'lib/hr-tempo',
-  version: 1,
+  // @2: the configurability round's promotion (C10); @1 restored in defs-v1.ts (Y3).
+  version: 2,
   says: 'A tempo run on {run}: easy warm-up, then a tempo block at no slower than {pace} with heart rate held at 85–89% of threshold, growing by {grow} each time you hold it without a very hard Borg rating, up to {cap}',
   params: { run: ty.exercise('cardio'), pace: ty.q('pace'), grow: ty.q('time'), cap: ty.q('time'), start: ty.q('time') },
   // C10: the starting tempo-block length is a coaching default.
   defaults: { start: mins(20) },
+  labels: { start: 'starting block' },
   facts: ['lthr', 'avgHr', 'borg'],
   state: { block: ty.q('time') },
   writableBy: { block: ['session', 'owner'] },
@@ -188,12 +191,14 @@ export const isoHold = scheme({
  *  only ever PROPOSES a regression (medical: the clinician's call). */
 export const painGated = scheme({
   id: 'lib/pain-gated-loading',
-  version: 1,
+  // @2: the configurability round's promotion (C10); @1 restored in defs-v1.ts (Y3).
+  version: 2,
   says: '3×15 straight-knee and 3×15 bent-knee {lift}s; add {inc} after a session done in full with pain at 2/10 or less; above 5/10, propose taking {inc} off; a bad morning cuts each exercise to two sets',
   params: { lift: ty.exercise('weighted_bodyweight'), inc: ty.q('mass'), morningGate: ty.ord('pain') },
   // C10: the “bad morning” cutoff is a coaching default; the in-session
   // 2/10 and 5/10 gates are the method's published numbers and stay literal.
   defaults: { morningGate: lvl('pain', 4) },
+  labels: { morningGate: 'morning pain cutoff' },
   facts: ['pain', 'morningPain'],
   state: { added: ty.q('mass'), flares: ty.q('one') },
   writableBy: { added: ['session', 'owner'], flares: ['session'] },
@@ -271,5 +276,5 @@ export const achillesReturn = macro({
   ],
 })
 
-export const PUBLISHED = [c25k, couchTo5k, hrTempo, easyRun, hrTempoBlock, isoHold, painGated, achillesIsometric, achillesLoading, achillesReturn] as const
+export const PUBLISHED = [c25k, couchTo5k, HR_TEMPO_V1, hrTempo, easyRun, hrTempoBlock, isoHold, PAIN_GATED_V1, painGated, achillesIsometric, achillesLoading, achillesReturn] as const
 export type { Ex }

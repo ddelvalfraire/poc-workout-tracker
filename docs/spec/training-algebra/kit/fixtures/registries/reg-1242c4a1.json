@@ -28,6 +28,9 @@
    "$def": "lib/linear-gated@1"
   },
   {
+   "$def": "prog/linear-3x5@1"
+  },
+  {
    "$def": "lib/apre-6rm@1"
   },
   {
@@ -41,6 +44,9 @@
   },
   {
    "$def": "lib/gzclp-t1@1"
+  },
+  {
+   "$def": "lib/gzclp-t1@2"
   },
   {
    "$def": "prog/gzclp-t1@1"
@@ -62,6 +68,9 @@
   },
   {
    "$def": "lib/double-progression@1"
+  },
+  {
+   "$def": "lib/double-progression@2"
   },
   {
    "$def": "lib/fixed-work@1"
@@ -88,6 +97,9 @@
    "$def": "lib/531-jokers@1"
   },
   {
+   "$def": "lib/531-jokers@2"
+  },
+  {
    "$def": "lib/rest-pause-dc@1"
   },
   {
@@ -109,6 +121,9 @@
    "$def": "lib/hr-tempo@1"
   },
   {
+   "$def": "lib/hr-tempo@2"
+  },
+  {
    "$def": "lib/easy-run@1"
   },
   {
@@ -121,6 +136,9 @@
    "$def": "lib/pain-gated-loading@1"
   },
   {
+   "$def": "lib/pain-gated-loading@2"
+  },
+  {
    "$def": "prog/achilles-isometric@1"
   },
   {
@@ -130,7 +148,79 @@
    "$def": "macro/achilles-return@1"
   },
   {
-   "$def": "prog/linear-3x5@1"
+   "kind": "scheme",
+   "ref": {
+    "id": "demo/flexible",
+    "version": 1
+   },
+   "says": "{lift}, two to four sets",
+   "params": {
+    "lift": {
+     "t": "ref",
+     "kind": "exercise",
+     "logging": [
+      "bodyweight_reps"
+     ]
+    }
+   },
+   "facts": [],
+   "enums": {},
+   "state": {},
+   "plan": {
+    "k": "session",
+    "exercise": {
+     "k": "param",
+     "name": "lift"
+    },
+    "steps": [
+     {
+      "k": "step",
+      "id": "w",
+      "count": {
+       "k": "range",
+       "min": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 2,
+         "unit": "set"
+        }
+       },
+       "max": {
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 4,
+         "unit": "set"
+        }
+       }
+      },
+      "target": {
+       "k": "set",
+       "role": "working",
+       "target": {
+        "reps": {
+         "b": "exact",
+         "v": {
+          "k": "lit",
+          "lit": {
+           "k": "q",
+           "v": 10,
+           "unit": "rep"
+          }
+         }
+        }
+       },
+       "rest": null,
+       "tempo": null,
+       "cluster": null
+      }
+     }
+    ],
+    "intensifier": null
+   },
+   "on": {},
+   "examples": []
   }
  ],
  "vocab": "base"

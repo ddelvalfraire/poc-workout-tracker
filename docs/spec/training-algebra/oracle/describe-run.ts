@@ -68,7 +68,10 @@ export const ABSENCE_TEXT: { [K in Absence['k']]: (a: Extract<Absence, { k: K }>
   ownerCleared: (a) => `you cleared ${a.field}`,
   roleExcluded: (a) => `this is ${/^[aeiou]/.test(a.role) ? 'an' : 'a'} ${a.role} week, which the weekly read leaves out`,
   noUpcomingWeek: () => 'the program has no week after this one',
-  outsideFormulaDomain: (a) => `${trim(a.reps)} effective reps is more than the ${a.formula.charAt(0).toUpperCase()}${a.formula.slice(1)} estimate covers`,
+  outsideFormulaDomain: (a) =>
+    a.cap !== undefined
+      ? `no set qualified: ${trim(a.reps)} effective reps is over the program's declared cap of ${a.cap}`
+      : `no set qualified: ${trim(a.reps)} effective reps is more than the ${a.formula.charAt(0).toUpperCase()}${a.formula.slice(1)} estimate covers`,
 }
 export const absenceText = (a: Absence, reg: Registry) => (ABSENCE_TEXT[a.k] as (x: Absence, r: Registry) => string)(a, reg)
 
@@ -135,8 +138,10 @@ export function viewerDisplay(reg: Registry, display: Display, viewer: ViewerUni
 export function sessionText(s: IssuedSession, reg: Registry, viewer?: ViewerUnits): string[] {
   const p = s.stamp.position
   const moved = s.day !== s.defaultDay ? ` (the rotation suggested Day ${s.defaultDay})` : ''
-  const display = viewerDisplay(reg, s.stamp.display, viewer)
-  return [`Day ${s.day}, ${dayText(s.stamp.issuedOn)}, block week ${p.week} (${p.role})${moved}:`, ...s.slots.map((sl) => `  ${slotText(sl, reg, display)}`)]
+  // A slot with its own grid renders grid-native in that grid's unit (U2,
+  // U-L2); the viewer's conversion stays display-only on top of it (U-L3).
+  const displayFor = (slot: string) => viewerDisplay(reg, { ...s.stamp.display, ...s.stamp.slotGrids?.[slot]?.display }, viewer)
+  return [`Day ${s.day}, ${dayText(s.stamp.issuedOn)}, block week ${p.week} (${p.role})${moved}:`, ...s.slots.map((sl) => `  ${slotText(sl, reg, displayFor(sl.slot))}`)]
 }
 
 // ── values and traces ───────────────────────────────────────────────────────

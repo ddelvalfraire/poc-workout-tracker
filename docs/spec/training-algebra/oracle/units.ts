@@ -101,6 +101,14 @@ export const CLOCK_UNITS: readonly string[] = ['d', 'wk']
 
 // ── unit records ─────────────────────────────────────────────────────────────
 
+/** THE kg/lb factor (U1): 1 lb = 0.45359237 kg, the exact legal definition
+ *  (the 1959 international avoirdupois pound). Every lb↔kg conversion in the
+ *  language goes through this one constant, as `UNITS.lb.scale`, through
+ *  `canon` (authored lb × the factor, one binary64 multiply, no intermediate
+ *  rounding) and `shown` (canonical ÷ the factor). A grid is NEVER converted:
+ *  quantization happens against the grid in the grid's declared unit (U-L2). */
+export const LB_IN_KG = 0.45359237
+
 const trim = (n: number) => String(Number(n.toFixed(3)))
 const plural = (n: number, w: string) => `${trim(n)} ${w}${n === 1 ? '' : 's'}`
 /** mm:ss, for pace and long durations ("5:30"). Whole seconds first, so
@@ -125,7 +133,7 @@ export interface UnitDecl {
  *  lb; its value is canonical. */
 export const UNITS = {
   kg: { dim: 'mass', scale: 1, symbol: ' kg', prose: (n) => `${trim(n)} kg` },
-  lb: { dim: 'mass', scale: 0.45359237, symbol: ' lb', prose: (n) => `${trim(n)} lb` },
+  lb: { dim: 'mass', scale: LB_IN_KG, symbol: ' lb', prose: (n) => `${trim(n)} lb` },
   rep: { dim: 'reps', scale: 1, symbol: ' reps', prose: (n) => plural(n, 'rep') },
   set: { dim: 'sets', scale: 1, symbol: ' sets', prose: (n) => plural(n, 'set') },
   s: { dim: 'time', scale: 1, symbol: ' s', prose: (n) => `${trim(n)} s` },

@@ -23,16 +23,29 @@ The generator source lives beside the oracle so it is type-checked with it (step
 
 | directory | files | fixtures |
 |---|---|---|
-| fixtures/defs | 44 | 44 |
+| fixtures/defs | 49 | 49 |
 | fixtures/registries | 12 | 12 |
-| fixtures/eval | 206 | 1790 |
-| fixtures/refusals | 319 | 319 |
-| fixtures/prose | 79 | 475 |
+| fixtures/eval | 226 | 1844 |
+| fixtures/refusals | 351 | 351 |
+| fixtures/prose | 86 | 484 |
 
-Compile-time and ingest refusal codes with at least one refusal fixture: 49 of 50. Codes with none: `dayStampOutOfRange`, `floorNotConfirmed`.
+Compile-time and ingest refusal codes with at least one refusal fixture: 49 of 50. Codes with none: `badOverride`, `dayStampOutOfRange`, `floorNotConfirmed`.
 
 Refusal fixtures whose input is authoring JSON that does not parse as IR (tagged `inputSchemaErrors`; the checker still answers them, and the schema is stricter than the checker there): 
 
+- literalDomain: cfgfix.literaldomain.16.json
+- literalDomain: cfgfix.literaldomain.17.json
+- literalDomain: cfgfix.literaldomain.3.json
+- literalDomain: cfgfix.literaldomain.4.json
+- unknownName: cfgfix.unknownname.2.json
+- unknownName: cfgfix.unknownname.3.json
+- unknownName: cfgfix.unknownname.4.json
+- unknownName: cfgfix.unknownname.5.json
+- unknownName: cfgfix.unknownname.6.json
+- unknownName: cfgfix.unknownname.7.json
+- unknownName: cfgfix.unknownname.8.json
+- unknownName: cfgfix.unknownname.9.json
+- unknownName: cfgfix.unknownname.json
 - unknownName: config.unknownname.2.json
 - unknownName: config.unknownname.3.json
 - unknownName: config.unknownname.4.json
@@ -58,6 +71,9 @@ Refusal fixtures whose input is authoring JSON that does not parse as IR (tagged
 - unknownName: hardening.unknownname.3.json
 - unknownName: hardening.unknownname.4.json
 - unknownName: hardening.unknownname.json
+- unknownName: units.unknownname.2.json
+- unknownName: units.unknownname.3.json
+- unknownName: units.unknownname.json
 - literalDomain: weekbasis.literaldomain.json
 - unknownName: weekbasis.unknownname.2.json
 - unknownName: weekbasis.unknownname.json
@@ -74,12 +90,13 @@ Sampling and what was not exported:
   "evaluate.evaluate": 1496,
   "issue.applyUse": 87
  },
- "duplicatesDropped": 2306,
+ "duplicatesDropped": 2343,
  "notExported": {
   "step.activate: codec: a registry whose definitions and publication order disagree": 6,
   "step.prescribe: codec: a registry whose definitions and publication order disagree": 4,
   "issue.resolveLive: codec: a registry whose definitions and publication order disagree": 7,
-  "evaluate.evaluate: a call of arg1.record cannot be encoded: codec: undefined at $": 5
+  "evaluate.evaluate: a call of arg1.record cannot be encoded: codec: undefined at $": 5,
+  "judge.verdictOf: codec: undefined": 1
  }
 }
 ```
@@ -112,7 +129,7 @@ A branch is exercised when some fixture file's data takes it (definitions, regis
 | ExportDecl | 1 | — | — |
 | XformOp | 8 | — | swapExercise, addSets |
 | TypeError | 43 | — | unitMismatch, notComparable, absenceUnhandled, unknownName, missingArg, forwardStepRef, capabilityEscape, notOwner, notWritableHere, undeclaredFact, nonGroundAccumulator, nonExhaustive, boundNotLiteral, templateHoles, exampleFailed, futureRef, peakNeedsFixed, overBudget, metricNotLogged, shapeNotAllowed, scopedFormer, infeasibleFrequency, timeCommit, anchoredRequired, restOwnedByGroup, windowTooLong, primaryMuscle, boundsInverted, openNotLast, fixedNeedsOnce, emomNeedsFixedCount, importMismatch, clockMix, clockRate, loggingMismatch, nExceedsMax, unlabeledLet, thresholdOrder, tableShape, roleDoubleEncoding, noSuchKind, policyOrder, literalDomain |
-| IngestRefusal | 8 | dayStampOutOfRange, floorNotConfirmed | emptySession, notALocalDay, dayStampOutOfRange, programComplete, floorNotConfirmed, instanceClosed, notOwnerWritable, rebindNeedsMigration |
+| IngestRefusal | 9 | dayStampOutOfRange, floorNotConfirmed | emptySession, badOverride, notALocalDay, dayStampOutOfRange, programComplete, floorNotConfirmed, instanceClosed, notOwnerWritable, rebindNeedsMigration |
 
 Term formers that no evaluation fixture's trace shows being evaluated: none.
 

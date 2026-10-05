@@ -46,6 +46,9 @@
    "$def": "lib/gzclp-t1@1"
   },
   {
+   "$def": "lib/gzclp-t1@2"
+  },
+  {
    "$def": "prog/gzclp-t1@1"
   },
   {
@@ -65,6 +68,9 @@
   },
   {
    "$def": "lib/double-progression@1"
+  },
+  {
+   "$def": "lib/double-progression@2"
   },
   {
    "$def": "lib/fixed-work@1"
@@ -91,6 +97,9 @@
    "$def": "lib/531-jokers@1"
   },
   {
+   "$def": "lib/531-jokers@2"
+  },
+  {
    "$def": "lib/rest-pause-dc@1"
   },
   {
@@ -112,6 +121,9 @@
    "$def": "lib/hr-tempo@1"
   },
   {
+   "$def": "lib/hr-tempo@2"
+  },
+  {
    "$def": "lib/easy-run@1"
   },
   {
@@ -122,6 +134,9 @@
   },
   {
    "$def": "lib/pain-gated-loading@1"
+  },
+  {
+   "$def": "lib/pain-gated-loading@2"
   },
   {
    "$def": "prog/achilles-isometric@1"

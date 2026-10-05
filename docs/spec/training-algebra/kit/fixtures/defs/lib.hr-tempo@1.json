@@ -31,22 +31,6 @@
    "dim": {
     "time": 1
    }
-  },
-  "start": {
-   "t": "q",
-   "dim": {
-    "time": 1
-   }
-  }
- },
- "defaults": {
-  "start": {
-   "k": "lit",
-   "lit": {
-    "k": "q",
-    "v": 1200,
-    "unit": "min"
-   }
   }
  },
  "facts": [
@@ -64,8 +48,12 @@
     }
    },
    "init": {
-    "k": "param",
-    "name": "start"
+    "k": "lit",
+    "lit": {
+     "k": "q",
+     "v": 1200,
+     "unit": "min"
+    }
    },
    "writableBy": [
     "session",

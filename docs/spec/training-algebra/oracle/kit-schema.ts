@@ -17,6 +17,7 @@ import type { Absence, ClosedFacts, Event, Field, Fired, Frame, IngestRefusal, I
 import type { Ctx } from './evaluate'
 import type { Scope } from './checker'
 import type { EventSource } from './judge'
+import { E1RM_FORMULA_NAMES } from './options'
 import type { Inputs, Reads, Runtime } from './ports'
 import type { PhaseRun } from './project'
 import type { ExerciseDecl, FactDecl, MetricDecl, ReducerDecl } from './registry'
@@ -120,7 +121,7 @@ const InstanceStatus = strs<Head['status']>('InstanceStatus', { active: true, pa
 const Mode = strs<'commit' | 'propose'>('PatchMode', { commit: true, propose: true })
 const Drift = strs<Calendar['drift']>('Drift', { slide: true, anchored: true })
 const SuccessRuleS = def('SuccessRule', anyOf(lit('totalReps'), obj({ atLeastSets: int })))
-const E1rmFormulaS = enumOf('E1rmFormula', ['epley', 'brzycki', 'lombardi', 'mayhew'])
+const E1rmFormulaS = enumOf('E1rmFormula', E1RM_FORMULA_NAMES)
 const E1rmDeclS = def('E1rmDecl', obj({ formula: E1rmFormulaS, maxReps: opt(int) }))
 const WeekdayS = enumOf('Weekday', WEEKDAYS)
 const AdherenceWeeksS = def('AdherenceWeeksAligned', obj({ calendarAligned: obj({ weekStart: WeekdayS }) }))
@@ -187,7 +188,7 @@ const CalQueryS = union<CalQuery, 'q'>('CalQuery', 'q', {
   recent: { of: SelectorS, days: int, measure: MeasureS },
 })
 const EventQueryS = union<EventQuery, 'q'>('EventQuery', 'q', {
-  verdict: { steps: anyOf(arr(str), lit('working')), bound: Edge, success: opt(SuccessRuleS) },
+  verdict: { steps: anyOf(arr(str), lit('working')), bound: Edge, success: opt(anyOf(SuccessRuleS, lit('allSets'))) },
   metric: { step: str, metric: str, pick: ReadPick },
   e1rm: { step: str, formula: opt(E1rmFormulaS) },
   prescribed: { step: str, metric: str, edge: Edge },
@@ -259,7 +260,7 @@ union<Term, 'k'>('Term', 'k', {
 const Templ = str
 const EnumDecls = rec(arr(str))
 const ExampleS = def('Example', shape<Example>()({ args: rec(T), gives: T }))
-const FnDefS = def('FnDef', shape<FnDef>()({ kind: lit('fn'), ref: DefRefS, params: rec(Ty_), defaults: opt(rec(T)), result: Ty_, says: Templ, enums: EnumDecls, examples: arr(ExampleS, 1), body: T }))
+const FnDefS = def('FnDef', shape<FnDef>()({ kind: lit('fn'), ref: DefRefS, params: rec(Ty_), defaults: opt(rec(T)), labels: opt(rec(str)), result: Ty_, says: Templ, enums: EnumDecls, examples: arr(ExampleS, 1), body: T }))
 const StateDeclS = def('StateDecl', shape<StateDecl>()({ ty: Ty_, init: T, writableBy: arr(Writer), noun: str }))
 const SchemeExampleS = def(
   'SchemeExample',
@@ -274,6 +275,7 @@ const SchemeDefS = def(
     says: Templ,
     params: rec(Ty_),
     defaults: opt(rec(T)),
+    labels: opt(rec(str)),
     facts: arr(str),
     enums: EnumDecls,
     state: rec(StateDeclS),
@@ -283,7 +285,9 @@ const SchemeDefS = def(
   }),
 )
 void SlotEvent
-const SlotMetaS = def('SlotMeta', shape<SlotMeta>()({ muscles: rec(num), tags: opt(arr(str)), success: opt(SuccessRuleS) }))
+const SlotMetaS = def('SlotMeta', shape<SlotMeta>()({ muscles: rec(num), tags: opt(arr(str)), success: opt(SuccessRuleS), grids: opt(obj({ load: opt(T), distance: opt(T) })) }))
+/** U2: a slot's stamped grid override — steps canonical, display the grid's declared unit. */
+const SlotGridStampS = def('SlotGridStamp', obj({ grids: obj({ load: opt(num), distance: opt(num) }), display: rec(Unit) }))
 const SlotBindingS = def('SlotBinding', shape<SlotBinding>()({ scheme: DefRefS, args: rec(T), meta: SlotMetaS }))
 const GroupS = union<Group, 'k'>('Group', 'k', {
   single: { slot: str },
@@ -450,6 +454,7 @@ const TypeErrorS = union<TypeError, 'code'>('TypeError', 'code', {
 })
 const IngestRefusalS = union<IngestRefusal, 'code'>('IngestRefusal', 'code', {
   emptySession: { workoutId: str },
+  badOverride: { option: str, value: anyOf(num, str) },
   notALocalDay: { stamped: str },
   dayStampOutOfRange: { stamped: day, utc: str },
   programComplete: {},
@@ -477,7 +482,7 @@ const AbsenceS = union<Absence, 'k'>('Absence', 'k', {
   ownerCleared: { field: str },
   roleExcluded: { role: WeekRole },
   noUpcomingWeek: {},
-  outsideFormulaDomain: { formula: str, reps: num },
+  outsideFormulaDomain: { formula: str, reps: num, cap: opt(int) },
 })
 const IssuedBoundS = union<IssuedBound, 'b'>('IssuedBound', 'b', {
   exact: { v: num },
@@ -552,7 +557,9 @@ const StampS = def(
     policies: arr(int),
     phaseTransform: nullable(DefRefS),
     grids: obj({ load: opt(num), distance: opt(num) }),
+    slotGrids: opt(rec(SlotGridStampS)),
     ties: opt(lit('up')),
+    e1rm: opt(E1rmDeclS),
     display: rec(Unit),
   }),
 )
@@ -581,7 +588,8 @@ const ClosedFactsS = def(
     startedEarly: bool,
   }),
 )
-const InstanceS = def('Instance', shape<Instance>()({ id: str, anchor: day, activatedOn: day, predecessor: nullable(str) }))
+const OverridesS = def('SpecOverrides', obj({ lapseAfterDays: opt(int), adherenceWeeks: opt(anyOf(lit('fromAnchor'), AdherenceWeeksS)) }))
+const InstanceS = def('Instance', shape<Instance>()({ id: str, anchor: day, activatedOn: day, overrides: opt(OverridesS), predecessor: nullable(str) }))
 const EventS = union<Event, 'k'>('Event', 'k', {
   sessionClosed: { causeKey: pattern('^session:'), facts: ClosedFactsS },
   dayClosed: { causeKey: pattern('^day:'), day },
@@ -743,6 +751,7 @@ const CtxS = def(
     display: opt(rec(Unit)),
     logs: opt(nullable(arr(str))),
     ties: opt(lit('up')),
+    e1rm: opt(E1rmDeclS),
     logging: opt(nullable(LoggingType)),
     record: opt(FnTok),
   }),
@@ -761,10 +770,11 @@ const CxS = def(
     peer: FnTok,
     programNouns: rec(str),
     slotSuccess: opt(SuccessRuleS),
+    defaulted: opt(setOf(str)),
     alignedWeeks: opt(str),
   }),
 )
-const RuntimeS = def('Runtime', shape<Runtime>()({ reg: RegistryTok, def: ProgramDefS, spec: CalendarSpecS, phaseTransform: nullable(UseS), phase: nullable(str) }))
+const RuntimeS = def('Runtime', shape<Runtime>()({ reg: RegistryTok, def: ProgramDefS, spec: CalendarSpecS, overrides: opt(OverridesS), phaseTransform: nullable(UseS), phase: nullable(str) }))
 const InputsS = def(
   'Inputs',
   shape<Inputs>()({ facts: FactSourceS, today: day, earlierToday: int, reads: ReadsS, prevPhase: opt(rec(rec(V))) }),
@@ -815,9 +825,9 @@ export const OP_SIGS: { [K in Op]: Sig } = {
   'issue.applyUse': { args: [UseS, SessionValueS, CtxS], ret: SessionValueS },
   'issue.currentView': { args: [IssuedSessionS, arr(ResolutionS)], ret: arr(IssuedSlotS) },
   'issue.resolveLive': { args: [anyOf(RegOnly, RuntimeS), IssuedSessionS, LoggedS, arr(ResolutionS)], ret: arr(ResolutionS) },
-  'issue.setsDue': { args: [anyOf(RegOnly, RuntimeS), IssuedSlotS, IssuedStepS, rec(arr(PerformedSetS))], ret: num },
+  'issue.setsDue': { args: [anyOf(RegOnly, RuntimeS), IssuedSlotS, IssuedStepS, rec(arr(PerformedSetS)), opt(obj({ display: opt(rec(Unit)), ties: opt(lit('up')), e1rm: opt(E1rmDeclS), slotGrids: opt(rec(SlotGridStampS)) }))], ret: num },
   'xform.applyXform': { args: [XformOpS, SessionValueS, nullable(V), nullable(str), nullable(strings), opt(nullable(strings)), opt(bool)], ret: SessionValueS },
-  'judge.verdictOf': { args: [EventSourceS, anyOf(strings, lit('working')), Edge, opt(SuccessRuleS)], ret: VerdictTag },
+  'judge.verdictOf': { args: [EventSourceS, anyOf(strings, lit('working')), Edge, opt(anyOf(SuccessRuleS, lit('allSets')))], ret: VerdictTag },
   'step.activate': { args: [RuntimeS, rec(V), FactSourceS], ret: HeadS },
   'step.step': { args: [RuntimeS, HeadS, EventS], ret: StepResultS },
   'step.ingest': { args: [RuntimeS, LedgerS, EventS], ret: obj({ ledger: LedgerS, result: IngestResultS }) },
@@ -836,7 +846,7 @@ export const OP_SIGS: { [K in Op]: Sig } = {
     ret: anyOf(OccurrenceS, obj({ refused: lit('emptySession'), workoutId: str })),
   },
   'time.completedFraction': { args: [CalendarStateS], ret: num },
-  'time.calendarSpecOf': { args: [ProgramDefS, arr(SelectorS), str, day, day, opt(obj({ lapseAfterDays: opt(int), adherenceWeeks: opt(anyOf(lit('fromAnchor'), AdherenceWeeksS)) }))], ret: CalendarSpecS },
+  'time.calendarSpecOf': { args: [ProgramDefS, arr(SelectorS), str, day, day, opt(obj({ lapseAfterDays: opt(num), adherenceWeeks: opt(anyOf(lit('fromAnchor'), obj({ calendarAligned: obj({ weekStart: str }) }))) }))], ret: anyOf(CalendarSpecS, IngestRefusalS) },
   'checker.top': { args: [T, ScopeS, Path, nullable(Ty_), TypeErrors], ret: nullable(obj({ ty: Ty_, cost: int })) },
   'checkdefs.checkFn': { args: [FnDefS, RegistryTok], ret: TypeErrors },
   'checkdefs.checkScheme': { args: [SchemeDefS, RegistryTok, opt(any)], ret: TypeErrors },

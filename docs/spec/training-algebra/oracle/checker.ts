@@ -25,6 +25,7 @@ import { ENUM_VALUES, SCALE_LEVELS, VERDICT_TAGS, type LoggingType, type Scale, 
 import { weeklyIsOpt, type BoundIR, type Cap, type Clock, type FnDef, type MapKey, type RefKind, type StepIR, type Term, type Ty } from './algebra'
 import { BUDGET, OVER_BUDGET_FIX, type Position, type TypeError } from './engine'
 import { MAX_WINDOW_DAYS, type Selector } from './time'
+import { checkSuccessRule, E1RM_FORMULA_NAMES } from './options'
 import type { AggEventKind, MacroDef, ProgramDef, SchemeDef, StateDecl, Writer } from './structure'
 
 export type Path = (string | number)[]
@@ -649,12 +650,13 @@ export function infer(t: Term, sc: Scope, path: Path, out: TypeError[]): Res | n
       switch (q.q) {
         case 'verdict': {
           if (q.steps !== 'working' && !q.steps.every(stepOk)) return null
-          const su = q.success
-          if (su !== undefined && su !== 'totalReps') {
-            if (!su || typeof su !== 'object' || !('atLeastSets' in su))
-              return err({ code: 'unknownName', name: String(su), message: `no verdict success rule ${String(su)} (totalReps, or {atLeastSets: n}; omit it for allSets)` }, [...path, 'q', 'success'])
-            if (!(Number.isInteger(su.atLeastSets) && su.atLeastSets >= 1))
-              return err({ code: 'literalDomain', former: 'event', field: 'success', value: su.atLeastSets, message: `atLeastSets is a whole number of sets from 1, got ${su.atLeastSets}` }, [...path, 'q', 'success'])
+          // The shared rule check (options.ts): a READ may spell 'allSets'
+          // to override a slot rule back to the per-set reading (Y8).
+          const su: TypeError[] = []
+          checkSuccessRule(q.success, [...path, 'q', 'success'], su, { allowAllSets: true, former: 'event' })
+          if (su.length) {
+            out.push(...su)
+            return null
           }
           return done(VERDICT, 0)
         }
@@ -667,8 +669,8 @@ export function infer(t: Term, sc: Scope, path: Path, out: TypeError[]): Res | n
           return done(q.q === 'metric' ? pickTy(mt, q.pick) : opt(mt), 0)
         }
         case 'e1rm':
-          if (q.formula !== undefined && !['epley', 'brzycki', 'lombardi', 'mayhew'].includes(q.formula))
-            return err({ code: 'unknownName', name: String(q.formula), message: `no e1RM formula ${String(q.formula)} (epley, brzycki, lombardi, mayhew)` }, [...path, 'q', 'formula'])
+          if (q.formula !== undefined && !E1RM_FORMULA_NAMES.includes(q.formula))
+            return err({ code: 'unknownName', name: String(q.formula), message: `no e1RM formula ${String(q.formula)} (${E1RM_FORMULA_NAMES.join(', ')})` }, [...path, 'q', 'formula'])
           return stepOk(q.step) ? done(opt(MASS), 0) : null
         case 'stages':
           return stepOk(q.step) ? done(q.pick === 'count' ? ONE : opt(REPS), 0) : null

@@ -30,14 +30,15 @@ import { keyOf, type Registry } from './checker'
 import type { Field, Head, IngestRefusal, IssuedBound, IssuedSession, IssuedSlot, IssuedStep, IssuedTarget, Logged, PerformedSet, Resolution, SessionValue, Trace, Value } from './engine'
 import { asQ, boundField, cmpNum, ctxOf, evaluate, type Ctx } from './evaluate'
 import { canonicalJson } from './canonical'
-import { displayOf, evalProgram, hashOf, nextDay, planSlot, programCtx, roleOf, trainWeekOf, type Inputs, type Runtime } from './ports'
+import { displayOf, evalProgram, hashOf, nextDay, planSlot, programCtx, roleOf, slotGridsOf, trainWeekOf, type Inputs, type Runtime } from './ports'
 import type { Use } from './structure'
 import { dueVerdict } from './time'
 import { DIMS, dimEq, nearestStep, stepDown, stepUp, type Ties } from './units'
+import { STRIP_DEFAULT } from './options'
 
-/** L10's default role list; a program's stripIntensifierOn replaces it (C5). */
-const STRIP_ROLES: readonly string[] = ['deload', 'taper', 'test']
-const stripRolesOf = (def: Pick<Runtime['def'], 'stripIntensifierOn'>): readonly string[] => def.stripIntensifierOn ?? STRIP_ROLES
+/** L10's role list: the program's stripIntensifierOn, else the table's
+ *  default (options.ts, the one copy). */
+const stripRolesOf = (def: Pick<Runtime['def'], 'stripIntensifierOn'>): readonly string[] => def.stripIntensifierOn ?? STRIP_DEFAULT
 
 // ── the sink ────────────────────────────────────────────────────────────────
 
@@ -153,7 +154,10 @@ export function issueSlot(rt: Runtime, head: Head, slot: string, inp: Inputs, fi
   if (rt.phaseTransform) trace = applyUseTraced(rt.phaseTransform, trace, pcx)
   const s = (trace.value as Extract<Value, { v: 'session' }>).s
   const strip = stripRolesOf(rt.def).includes(role) && s.intensifier !== null
-  const out = sinkSlot(rt, slot, strip ? { ...s, intensifier: null } : s, gridsOf(rt), trace, rt.def.ties ?? 'down')
+  // U2: the slot's own grids win over the program's for this slot's sink; the
+  // grid is never converted, so the issued value lands on the DECLARED unit's
+  // multiples and displays in it.
+  const out = sinkSlot(rt, slot, strip ? { ...s, intensifier: null } : s, { ...gridsOf(rt), ...slotGridsOf(rt, slot)?.grids }, trace, rt.def.ties ?? 'down')
   const issued: SessionValue = { exercise: s.exercise, steps: out.steps, intensifier: out.intensifier }
   const changed = sinkChanges(s, issued)
   if (!strip && !changed.length) return out
@@ -185,6 +189,13 @@ export function issueSession(rt: Runtime, head: Head, day: string, inp: Inputs):
   const fired = firedPolicies(rt, head, inp)
   const slots = groups.flatMap((g) => (g.k === 'single' ? [g.slot] : g.slots))
   const issued = slots.map((slot) => issueSlot(rt, head, slot, inp, fired))
+  // U2: the per-slot grid stamp, present only when a slot of this session
+  // declares its own grids; resolution reads it, never re-deriving.
+  const slotGrids: NonNullable<IssuedSession['stamp']['slotGrids']> = {}
+  for (const slot of slots) {
+    const sg = slotGridsOf(rt, slot)
+    if (sg) slotGrids[slot] = sg
+  }
   const gapDays = (rule: number) => {
     const f = rt.spec.frequency[rule]
     if (!f || f.k !== 'minGap') return 0
@@ -210,7 +221,9 @@ export function issueSession(rt: Runtime, head: Head, day: string, inp: Inputs):
       policies: fired,
       phaseTransform: rt.phaseTransform?.def ?? null,
       grids: gridsOf(rt),
+      ...(Object.keys(slotGrids).length ? { slotGrids } : {}),
       ...(rt.def.ties === 'up' ? { ties: 'up' as const } : {}),
+      ...(rt.def.e1rm ? { e1rm: rt.def.e1rm } : {}),
       display: displayOf(rt),
     },
   }
@@ -275,11 +288,12 @@ export function currentView(issued: IssuedSession, resolutions: readonly Resolut
 /** A live context for one step of a slot: the logged sets and current
  *  targets of the steps it can see. `own.before` limits a step's self-read to
  *  the sets before index i. */
-function liveCtx(rt: Pick<Runtime, 'reg'>, view: IssuedSlot, at: number, logged: Record<string, PerformedSet[]>, frame: import('./engine').Frame, own: { id: string; key: string; before: number } | null, display: IssuedSession['stamp']['display'] = {}, ties: Ties = 'down'): Ctx {
+function liveCtx(rt: Pick<Runtime, 'reg'>, view: IssuedSlot, at: number, logged: Record<string, PerformedSet[]>, frame: import('./engine').Frame, own: { id: string; key: string; before: number } | null, display: IssuedSession['stamp']['display'] = {}, ties: Ties = 'down', e1rm?: IssuedSession['stamp']['e1rm']): Ctx {
   return ctxOf(rt.reg, {
     frame,
     display,
     ...(ties === 'up' ? { ties: 'up' as const } : {}),
+    ...(e1rm ? { e1rm: e1rm as NonNullable<Ctx['e1rm']> } : {}),
     logging: 'id' in view.exercise ? view.exercise.logging : null,
     ports: {
       performed: (id) => (own && own.id === id ? (logged[own.key] ?? []).slice(0, own.before) : (logged[visibleStep(view, at, id)?.key ?? id] ?? [])),
@@ -298,10 +312,13 @@ export function resolveLive(rt: Pick<Runtime, 'reg'>, issued: IssuedSession, log
   const out: Resolution[] = []
   const latest = latestRows(issued.issueKey, already)
   let seq = already.reduce((a, r) => Math.max(a, r.seq), 0)
-  const grids = sinkGrids(rt.reg, issued.stamp.grids)
   // Resolution quantizes against the STAMPED ties, never re-deriving (C6).
   const ties: Ties = issued.stamp.ties ?? 'down'
   for (const sl of issued.slots) {
+    // The STAMPED per-slot grid wins (U2), like ties: never re-derived.
+    const sg = issued.stamp.slotGrids?.[sl.slot]
+    const grids = sinkGrids(rt.reg, { ...issued.stamp.grids, ...sg?.grids })
+    const display = { ...issued.stamp.display, ...sg?.display }
     const mine = logged[sl.slot] ?? {}
     sl.steps.forEach((st, at) =>
       st.sets.forEach((t, i) => {
@@ -314,7 +331,7 @@ export function resolveLive(rt: Pick<Runtime, 'reg'>, issued: IssuedSession, log
           const key = `${issued.issueKey}:${sl.slot}:${st.key}:${i}:${m}@${hashOf(fd.dependsOn.map(depSets))}`
           const cell = `${sl.slot}:${st.key}:${i}:${m}`
           if (latest.get(cell)?.key === key) continue
-          const cx = liveCtx(rt, view, at, mine, fd.frame, { id: st.id, key: st.key, before: i }, issued.stamp.display, ties)
+          const cx = liveCtx(rt, view, at, mine, fd.frame, { id: st.id, key: st.key, before: i }, display, ties, issued.stamp.e1rm)
           const kids: Trace[] = []
           const value = sink1(boundField(fd.bound, cx, kids), m, grids, ties) as Extract<Field, { k: 'fixed' | 'silent' }>
           const trace: Trace = { node: { k: 'set', role: t.role, target: { [m]: fd.bound }, rest: null, tempo: null, cluster: null } as Term, value: { v: 'set', t: { ...t, metrics: { [m]: value } } }, kids }
@@ -330,12 +347,14 @@ export function resolveLive(rt: Pick<Runtime, 'reg'>, issued: IssuedSession, log
 
 /** How many sets of an until/while step are due now, from what was logged:
  *  `while` asks its condition before each set, `until` after each one. */
-export function setsDue(rt: Pick<Runtime, 'reg'>, view: IssuedSlot, st: IssuedStep, logged: Record<string, PerformedSet[]>): number {
+export function setsDue(rt: Pick<Runtime, 'reg'>, view: IssuedSlot, st: IssuedStep, logged: Record<string, PerformedSet[]>, stamp?: Pick<IssuedSession['stamp'], 'display' | 'ties' | 'e1rm' | 'slotGrids'>): number {
   if (!st.live || (st.count.k !== 'until' && st.count.k !== 'while')) return st.count.k === 'n' ? st.count.n : st.count.k === 'range' ? st.count.max : 0
   const at = Math.max(0, view.steps.findIndex((x) => x.key === st.key))
   const done = logged[st.key]?.length ?? 0
+  // The slot's stamped display wins for its own condition reads (U2).
+  const display = { ...(stamp?.display ?? {}), ...stamp?.slotGrids?.[view.slot]?.display }
   const cond = (before: number): boolean => {
-    const v: Value = evaluate(st.live!.cond, liveCtx(rt, view, at, logged, st.live!.frame, { id: st.id, key: st.key, before })).value
+    const v: Value = evaluate(st.live!.cond, liveCtx(rt, view, at, logged, st.live!.frame, { id: st.id, key: st.key, before }, display, stamp?.ties ?? 'down', stamp?.e1rm)).value
     return v.v === 'bool' && v.b
   }
   if (st.count.k === 'while') return done < st.count.max && cond(done) ? done + 1 : done

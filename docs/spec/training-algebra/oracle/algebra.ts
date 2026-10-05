@@ -442,9 +442,11 @@ export type EventQuery =
    *  every bound was logged and met, `missed` when some logged value violates
    *  its bound, `unknown` otherwise (something unlogged, nothing violated).
    *  Its sort is the verdict, consumed only by an exhaustive match.
-   *  `success` (an option; omitted = allSets) changes what "met" aggregates:
-   *  see SuccessRule. */
-  | { q: 'verdict'; steps: StepId[] | 'working'; bound: 'floor' | 'top'; success?: SuccessRule }
+   *  `success` (an option; omitted = the slot's declared rule, else allSets)
+   *  changes what "met" aggregates: see SuccessRule. A read may spell
+   *  'allSets' to override a slot rule BACK to the per-set reading (Y8: the
+   *  read wins in both directions; a field widening, not a former). */
+  | { q: 'verdict'; steps: StepId[] | 'working'; bound: 'floor' | 'top'; success?: SuccessRule | 'allSets' }
   | { q: 'metric'; step: StepId; metric: string; pick: ReadPick }
   /** The declared estimator (the program's `e1rm` declaration, Epley when
    *  none; `formula` overrides per read) over the best set, on EFFECTIVE load
@@ -744,6 +746,10 @@ export interface FnDef {
    *  hole-less defaulted param is appended to the rendered template. Omitted
    *  when empty, so a definition without defaults is byte-identical. */
   defaults?: Record<string, Term>
+  /** Display labels for defaulted params (Y11): what the rendered "(with …)"
+   *  append calls an overridden hole-less default, never the internal
+   *  identifier. Omitted when empty. */
+  labels?: Record<string, string>
   result: Ty
   says: Template
   enums: EnumDecls
@@ -767,6 +773,8 @@ export function fn<P, R, const D extends string = never>(spec: {
   params: TyWs<P>
   /** Closed literal values; a call, Use or example may then omit the param. */
   defaults?: { [K in D]: DefaultOf<NoInfer<P>, K> }
+  /** Display labels for the defaulted params' "(with …)" append (Y11). */
+  labels?: { [K in D]?: string }
   result: TyW<R>
   says: Template
   enums?: readonly EnumDecl<string>[]
@@ -778,11 +786,13 @@ export function fn<P, R, const D extends string = never>(spec: {
   const paramExprs = Object.fromEntries(names.map((n) => [n, E({ k: 'param', name: n })])) as unknown as ExprsC<P, 'param'>
   const lower = (args: Partial<Record<string, Expr<unknown, Cap>>>) => Object.fromEntries(names.flatMap((n) => (args[n] ? [[n, args[n]!.term] as const] : [])))
   const defaults = spec.defaults && Object.keys(spec.defaults).length ? { defaults: lower(spec.defaults as Record<string, Expr<unknown, Cap>>) } : {}
+  const labels = spec.labels && Object.keys(spec.labels).length ? { labels: { ...(spec.labels as Record<string, string>) } } : {}
   const def: FnDef = {
     kind: 'fn',
     ref,
     params: Object.fromEntries(names.map((n) => [n, (spec.params[n] as TyW<unknown>).ty])),
     ...defaults,
+    ...labels,
     result: spec.result.ty,
     says: spec.says,
     enums: enumDecls(spec.enums),

@@ -32,7 +32,7 @@
   "drops": {
    "scheme": {
     "id": "lib/pain-gated-loading",
-    "version": 1
+    "version": 2
    },
    "args": {
     "lift": {

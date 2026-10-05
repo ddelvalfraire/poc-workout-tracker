@@ -99,6 +99,7 @@ import {
   type WeeklyOpts,
 } from './structure'
 import { localDay } from './time'
+import { DOUBLE_PROGRESSION_V1, GZCLP_T1_V1, W531_JOKERS_V1 } from './defs-v1'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Prelude: named, templated, example-checked functions (D2)
@@ -399,11 +400,15 @@ export const w531 = scheme({
  *  accounting reads the floor. */
 export const w531Jokers = scheme({
   id: 'lib/531-jokers',
-  version: 1,
+  // @2: the configurability round's promotion (C10). @1 is the pre-round
+  // body, restored and republished unchanged (defs-v1.ts): a published
+  // version is immutable (Y3).
+  version: 2,
   says: '5/3/1 on {lift} off {tm}, with up to three jokers when the top set makes its reps, then 3–5 sets of 5 at the first-set weight',
   params: { lift: ty.exercise('weight_reps'), tm: ty.opt(ty.q('mass')), jokerStep: ty.q('one') },
   // C10: each joker's jump over the last single is a coaching default.
   defaults: { jokerStep: pct(105) },
+  labels: { jokerStep: 'Joker step' },
   state: {},
   writableBy: {},
   init: () => ({}),
@@ -480,7 +485,9 @@ export const GZ_T1 = declareEnum('gzT1', ['5x3', '6x2', '10x1', 'retest'])
 
 export const gzclpT1 = scheme({
   id: 'lib/gzclp-t1',
-  version: 1,
+  // @2: the configurability round's C1 correction (the method's totalReps
+  // rule); @1 is the pre-round body, restored in defs-v1.ts (Y3).
+  version: 2,
   says: 'GZCLP T1 on {lift}: 5×3+, then 6×2+, then 10×1+ on failure, adding {inc} on success, counting total reps across all sets; after failing 10×1, test a 5RM and restart 5×3+ at {resetPct} of it; starts at {start} when a previous program hands one on',
   params: { lift: ty.exercise('weight_reps'), inc: ty.q('mass'), resetPct: ty.q('one'), start: ty.opt(ty.q('mass')) },
   facts: ['e1rm'],
@@ -705,11 +712,13 @@ export const stabLadder = scheme({
 
 export const doubleProg = scheme({
   id: 'lib/double-progression',
-  version: 1,
+  // @2: the configurability round's promotion (C10); @1 restored in defs-v1.ts (Y3).
+  version: 2,
   says: '{sets} of {lift} in the phase rep range, starting at {start}; add {inc} once every set reaches the top of the range',
   params: { lift: ty.exercise('weight_reps'), sets: ty.q('sets'), inc: ty.q('mass'), start: ty.opt(ty.q('mass')), lo: ty.q('reps'), hi: ty.q('reps') },
   // C10: the base 8-12 range is a coaching choice, now a declared default.
   defaults: { lo: reps(8), hi: reps(12) },
+  labels: { lo: 'rep-range floor', hi: 'rep-range top' },
   facts: ['e1rm'],
   state: { load: ty.opt(ty.q('mass')) },
   writableBy: { load: ['session', 'owner'] },
@@ -967,6 +976,7 @@ export const PUBLISHED = [
   w531,
   bbb,
   fiveThreeOneBBB,
+  GZCLP_T1_V1,
   gzclpT1,
   gzclpT1Program,
   rpSlot,
@@ -974,6 +984,7 @@ export const PUBLISHED = [
   sfrOrNeutral,
   rpMeso,
   stabLadder,
+  DOUBLE_PROGRESSION_V1,
   doubleProg,
   fixedWork,
   repShape,
@@ -982,6 +993,7 @@ export const PUBLISHED = [
   optLoaded,
   optPower,
   optMacro,
+  W531_JOKERS_V1,
   w531Jokers,
   restPauseDc,
   clusterStrength,

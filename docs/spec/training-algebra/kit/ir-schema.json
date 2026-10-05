@@ -1216,7 +1216,14 @@
        "$ref": "#/$defs/Edge"
       },
       "success": {
-       "$ref": "#/$defs/SuccessRule"
+       "anyOf": [
+        {
+         "$ref": "#/$defs/SuccessRule"
+        },
+        {
+         "const": "allSets"
+        }
+       ]
       }
      },
      "required": [
@@ -2763,6 +2770,12 @@
       "$ref": "#/$defs/Term"
      }
     },
+    "labels": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "string"
+     }
+    },
     "result": {
      "$ref": "#/$defs/Ty"
     },
@@ -2902,6 +2915,12 @@
       "$ref": "#/$defs/Term"
      }
     },
+    "labels": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "string"
+     }
+    },
     "facts": {
      "type": "array",
      "items": {
@@ -2973,10 +2992,52 @@
     },
     "success": {
      "$ref": "#/$defs/SuccessRule"
+    },
+    "grids": {
+     "type": "object",
+     "properties": {
+      "load": {
+       "$ref": "#/$defs/Term"
+      },
+      "distance": {
+       "$ref": "#/$defs/Term"
+      }
+     },
+     "required": [],
+     "additionalProperties": false
     }
    },
    "required": [
     "muscles"
+   ],
+   "additionalProperties": false
+  },
+  "SlotGridStamp": {
+   "type": "object",
+   "properties": {
+    "grids": {
+     "type": "object",
+     "properties": {
+      "load": {
+       "$ref": "#/$defs/Number"
+      },
+      "distance": {
+       "$ref": "#/$defs/Number"
+      }
+     },
+     "required": [],
+     "additionalProperties": false
+    },
+    "display": {
+     "type": "object",
+     "additionalProperties": {
+      "$ref": "#/$defs/Unit"
+     }
+    }
+   },
+   "required": [
+    "grids",
+    "display"
    ],
    "additionalProperties": false
   },
@@ -5359,6 +5420,33 @@
      "type": "object",
      "properties": {
       "code": {
+       "const": "badOverride"
+      },
+      "option": {
+       "type": "string"
+      },
+      "value": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/Number"
+        },
+        {
+         "type": "string"
+        }
+       ]
+      }
+     },
+     "required": [
+      "code",
+      "option",
+      "value"
+     ],
+     "additionalProperties": false
+    },
+    {
+     "type": "object",
+     "properties": {
+      "code": {
        "const": "notALocalDay"
       },
       "stamped": {
@@ -5729,6 +5817,9 @@
       },
       "reps": {
        "$ref": "#/$defs/Number"
+      },
+      "cap": {
+       "type": "integer"
       }
      },
      "required": [
@@ -6733,8 +6824,17 @@
      "required": [],
      "additionalProperties": false
     },
+    "slotGrids": {
+     "type": "object",
+     "additionalProperties": {
+      "$ref": "#/$defs/SlotGridStamp"
+     }
+    },
     "ties": {
      "const": "up"
+    },
+    "e1rm": {
+     "$ref": "#/$defs/E1rmDecl"
     },
     "display": {
      "type": "object",
@@ -7024,6 +7124,26 @@
    ],
    "additionalProperties": false
   },
+  "SpecOverrides": {
+   "type": "object",
+   "properties": {
+    "lapseAfterDays": {
+     "type": "integer"
+    },
+    "adherenceWeeks": {
+     "anyOf": [
+      {
+       "const": "fromAnchor"
+      },
+      {
+       "$ref": "#/$defs/AdherenceWeeksAligned"
+      }
+     ]
+    }
+   },
+   "required": [],
+   "additionalProperties": false
+  },
   "Instance": {
    "type": "object",
    "properties": {
@@ -7035,6 +7155,9 @@
     },
     "activatedOn": {
      "$ref": "#/$defs/LocalDay"
+    },
+    "overrides": {
+     "$ref": "#/$defs/SpecOverrides"
     },
     "predecessor": {
      "anyOf": [
@@ -8762,6 +8885,9 @@
     "ties": {
      "const": "up"
     },
+    "e1rm": {
+     "$ref": "#/$defs/E1rmDecl"
+    },
     "logging": {
      "anyOf": [
       {
@@ -8898,6 +9024,21 @@
     "slotSuccess": {
      "$ref": "#/$defs/SuccessRule"
     },
+    "defaulted": {
+     "type": "object",
+     "properties": {
+      "$set": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      }
+     },
+     "required": [
+      "$set"
+     ],
+     "additionalProperties": false
+    },
     "alignedWeeks": {
      "type": "string"
     }
@@ -8927,6 +9068,9 @@
     },
     "spec": {
      "$ref": "#/$defs/CalendarSpec"
+    },
+    "overrides": {
+     "$ref": "#/$defs/SpecOverrides"
     },
     "phaseTransform": {
      "anyOf": [
@@ -9926,10 +10070,35 @@
            "$ref": "#/$defs/PerformedSet"
           }
          }
+        },
+        {
+         "type": "object",
+         "properties": {
+          "display": {
+           "type": "object",
+           "additionalProperties": {
+            "$ref": "#/$defs/Unit"
+           }
+          },
+          "ties": {
+           "const": "up"
+          },
+          "e1rm": {
+           "$ref": "#/$defs/E1rmDecl"
+          },
+          "slotGrids": {
+           "type": "object",
+           "additionalProperties": {
+            "$ref": "#/$defs/SlotGridStamp"
+           }
+          }
+         },
+         "required": [],
+         "additionalProperties": false
         }
        ],
        "minItems": 4,
-       "maxItems": 4,
+       "maxItems": 5,
        "items": false
       },
       "world": {
@@ -9979,6 +10148,31 @@
                "$ref": "#/$defs/PerformedSet"
               }
              }
+            },
+            "4": {
+             "type": "object",
+             "properties": {
+              "display": {
+               "type": "object",
+               "additionalProperties": {
+                "$ref": "#/$defs/Unit"
+               }
+              },
+              "ties": {
+               "const": "up"
+              },
+              "e1rm": {
+               "$ref": "#/$defs/E1rmDecl"
+              },
+              "slotGrids": {
+               "type": "object",
+               "additionalProperties": {
+                "$ref": "#/$defs/SlotGridStamp"
+               }
+              }
+             },
+             "required": [],
+             "additionalProperties": false
             }
            },
            "required": [],
@@ -10243,7 +10437,14 @@
          "$ref": "#/$defs/Edge"
         },
         {
-         "$ref": "#/$defs/SuccessRule"
+         "anyOf": [
+          {
+           "$ref": "#/$defs/SuccessRule"
+          },
+          {
+           "const": "allSets"
+          }
+         ]
         }
        ],
        "minItems": 3,
@@ -10284,7 +10485,14 @@
              "$ref": "#/$defs/Edge"
             },
             "3": {
-             "$ref": "#/$defs/SuccessRule"
+             "anyOf": [
+              {
+               "$ref": "#/$defs/SuccessRule"
+              },
+              {
+               "const": "allSets"
+              }
+             ]
             }
            },
            "required": [],
@@ -12014,7 +12222,7 @@
          "type": "object",
          "properties": {
           "lapseAfterDays": {
-           "type": "integer"
+           "$ref": "#/$defs/Number"
           },
           "adherenceWeeks": {
            "anyOf": [
@@ -12022,7 +12230,25 @@
              "const": "fromAnchor"
             },
             {
-             "$ref": "#/$defs/AdherenceWeeksAligned"
+             "type": "object",
+             "properties": {
+              "calendarAligned": {
+               "type": "object",
+               "properties": {
+                "weekStart": {
+                 "type": "string"
+                }
+               },
+               "required": [
+                "weekStart"
+               ],
+               "additionalProperties": false
+              }
+             },
+             "required": [
+              "calendarAligned"
+             ],
+             "additionalProperties": false
             }
            ]
           }
@@ -12044,7 +12270,14 @@
          "type": "object",
          "properties": {
           "ret": {
-           "$ref": "#/$defs/CalendarSpec"
+           "anyOf": [
+            {
+             "$ref": "#/$defs/CalendarSpec"
+            },
+            {
+             "$ref": "#/$defs/IngestRefusal"
+            }
+           ]
           },
           "mutated": {
            "type": "object",
@@ -12071,7 +12304,7 @@
              "type": "object",
              "properties": {
               "lapseAfterDays": {
-               "type": "integer"
+               "$ref": "#/$defs/Number"
               },
               "adherenceWeeks": {
                "anyOf": [
@@ -12079,7 +12312,25 @@
                  "const": "fromAnchor"
                 },
                 {
-                 "$ref": "#/$defs/AdherenceWeeksAligned"
+                 "type": "object",
+                 "properties": {
+                  "calendarAligned": {
+                   "type": "object",
+                   "properties": {
+                    "weekStart": {
+                     "type": "string"
+                    }
+                   },
+                   "required": [
+                    "weekStart"
+                   ],
+                   "additionalProperties": false
+                  }
+                 },
+                 "required": [
+                  "calendarAligned"
+                 ],
+                 "additionalProperties": false
                 }
                ]
               }
@@ -14872,10 +15123,35 @@
            "$ref": "#/$defs/PerformedSet"
           }
          }
+        },
+        {
+         "type": "object",
+         "properties": {
+          "display": {
+           "type": "object",
+           "additionalProperties": {
+            "$ref": "#/$defs/Unit"
+           }
+          },
+          "ties": {
+           "const": "up"
+          },
+          "e1rm": {
+           "$ref": "#/$defs/E1rmDecl"
+          },
+          "slotGrids": {
+           "type": "object",
+           "additionalProperties": {
+            "$ref": "#/$defs/SlotGridStamp"
+           }
+          }
+         },
+         "required": [],
+         "additionalProperties": false
         }
        ],
        "minItems": 4,
-       "maxItems": 4,
+       "maxItems": 5,
        "items": false
       },
       "world": {
@@ -14925,6 +15201,31 @@
                "$ref": "#/$defs/PerformedSet"
               }
              }
+            },
+            "4": {
+             "type": "object",
+             "properties": {
+              "display": {
+               "type": "object",
+               "additionalProperties": {
+                "$ref": "#/$defs/Unit"
+               }
+              },
+              "ties": {
+               "const": "up"
+              },
+              "e1rm": {
+               "$ref": "#/$defs/E1rmDecl"
+              },
+              "slotGrids": {
+               "type": "object",
+               "additionalProperties": {
+                "$ref": "#/$defs/SlotGridStamp"
+               }
+              }
+             },
+             "required": [],
+             "additionalProperties": false
             }
            },
            "required": [],
@@ -15201,7 +15502,14 @@
          "$ref": "#/$defs/Edge"
         },
         {
-         "$ref": "#/$defs/SuccessRule"
+         "anyOf": [
+          {
+           "$ref": "#/$defs/SuccessRule"
+          },
+          {
+           "const": "allSets"
+          }
+         ]
         }
        ],
        "minItems": 3,
@@ -15242,7 +15550,14 @@
              "$ref": "#/$defs/Edge"
             },
             "3": {
-             "$ref": "#/$defs/SuccessRule"
+             "anyOf": [
+              {
+               "$ref": "#/$defs/SuccessRule"
+              },
+              {
+               "const": "allSets"
+              }
+             ]
             }
            },
            "required": [],
@@ -17068,7 +17383,7 @@
          "type": "object",
          "properties": {
           "lapseAfterDays": {
-           "type": "integer"
+           "$ref": "#/$defs/Number"
           },
           "adherenceWeeks": {
            "anyOf": [
@@ -17076,7 +17391,25 @@
              "const": "fromAnchor"
             },
             {
-             "$ref": "#/$defs/AdherenceWeeksAligned"
+             "type": "object",
+             "properties": {
+              "calendarAligned": {
+               "type": "object",
+               "properties": {
+                "weekStart": {
+                 "type": "string"
+                }
+               },
+               "required": [
+                "weekStart"
+               ],
+               "additionalProperties": false
+              }
+             },
+             "required": [
+              "calendarAligned"
+             ],
+             "additionalProperties": false
             }
            ]
           }
@@ -17098,7 +17431,14 @@
          "type": "object",
          "properties": {
           "ret": {
-           "$ref": "#/$defs/CalendarSpec"
+           "anyOf": [
+            {
+             "$ref": "#/$defs/CalendarSpec"
+            },
+            {
+             "$ref": "#/$defs/IngestRefusal"
+            }
+           ]
           },
           "mutated": {
            "type": "object",
@@ -17125,7 +17465,7 @@
              "type": "object",
              "properties": {
               "lapseAfterDays": {
-               "type": "integer"
+               "$ref": "#/$defs/Number"
               },
               "adherenceWeeks": {
                "anyOf": [
@@ -17133,7 +17473,25 @@
                  "const": "fromAnchor"
                 },
                 {
-                 "$ref": "#/$defs/AdherenceWeeksAligned"
+                 "type": "object",
+                 "properties": {
+                  "calendarAligned": {
+                   "type": "object",
+                   "properties": {
+                    "weekStart": {
+                     "type": "string"
+                    }
+                   },
+                   "required": [
+                    "weekStart"
+                   ],
+                   "additionalProperties": false
+                  }
+                 },
+                 "required": [
+                  "calendarAligned"
+                 ],
+                 "additionalProperties": false
                 }
                ]
               }

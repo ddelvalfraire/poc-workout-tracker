@@ -20,15 +20,15 @@
  *   macros                 peakOn needs anchored drift and fixed phases;
  *                          bounded min ≤ max; open only last; fixed ⇒ once
  */
-import type { FnDef, StepIR, SuccessRule, Term, Ty } from './algebra'
-import { ENUM_VALUES } from './registry'
+import type { FnDef, StepIR, Term, Ty } from './algebra'
 import { BASE_VOCAB, type Vocab } from './registry'
+import { checkLabels, checkSlotGrids, checkSuccessRule, PROGRAM_OPTIONS } from './options'
 import { baseScope, BOOL, DAYS, dom, enumsWith, eqTy, infer, isLib, keyOf, ONE, showTy, stepIds, top, type Path, type ProgramView, type Registry, type Scope } from './checker'
 import { valueText } from './describe-run'
 import { runFnExample } from './evaluate'
 import { runSchemeExample } from './project'
 import type { TypeError, WriteEntry } from './engine'
-import { effectiveFrequency, feasibility, MAX_PERIOD_DAYS, WEEKDAYS, type Selector } from './time'
+import { effectiveFrequency, feasibility, MAX_PERIOD_DAYS, type Selector } from './time'
 import { calReads } from './ports'
 export { calReads }
 import { kindOf, LIFECYCLE_EXPORTS, type AggEventKind, type AnyDef, type MacroDef, type Policy, type ProgramDef, type SchemeDef, type SlotEventKind, type StateDecl, type Use, type Writer } from './structure'
@@ -110,6 +110,9 @@ function templateHoles(says: string, params: Record<string, Ty>, out: TypeError[
 /** Defaults (C10): each names a parameter and typechecks as a closed value
  *  (the example position grants nothing, so a default can read nothing). */
 function checkDefaults(defaults: Record<string, Term> | undefined, params: Record<string, Ty>, sc: (position: Scope['position']) => Scope, out: TypeError[]) {
+  // One form per meaning (Y4): no defaults is spelled by OMITTING the field.
+  if (defaults && !Object.keys(defaults).length)
+    out.push({ code: 'literalDomain', former: 'defaults', field: 'defaults', value: '{}', path: ['defaults'], message: 'defaults {} spells no defaults: omit it (one form per meaning)' })
   for (const [k, d] of Object.entries(defaults ?? {})) {
     const want = params[k]
     if (!want) {
@@ -129,6 +132,7 @@ export function checkFn(f: FnDef, reg: Registry): TypeError[] {
   const def = defOf(reg, f.ref)
   const sc = (position: Scope['position'], params: Record<string, Ty>): Scope => ({ ...baseScope(reg, position, params, def), enums: enumsWith(f.enums) })
   checkDefaults(f.defaults, f.params, (pos) => sc(pos, {}), out)
+  checkLabels(f.labels, f.defaults, out)
   top(f.body, sc('fnBody', f.params), ['body'], f.result, out)
   f.examples.forEach((ex, i) => {
     for (const [a, x] of Object.entries(ex.args))
@@ -161,6 +165,36 @@ const planStepIds = (plan: Term): string[] => [...new Set([...nodes(plan)].flatM
 const planSteps = (plan: Term): Extract<StepIR, { k: 'step' }>[] =>
   [...nodes(plan)].flatMap((n) => (n.k === 'session' ? n.steps.flatMap((s) => (s.k === 'repeat' ? s.body : [s])) : []))
 
+/** The most judged sets any one session of this plan can expect, when that
+ *  is statically knowable: literal counts (through params bound to literal
+ *  arguments or defaults), the MAX over the plan's session shapes, a range
+ *  judged at its floor, an until/while at its cap. Null when a count is not
+ *  literal or an addSets transform could grow the session (Y2's static half
+ *  then stays silent; the dynamic cap in the judge still holds). */
+export function maxJudgedSets(plan: Term, args: Record<string, Term>): number | null {
+  const JUDGED = new Set(['working', 'amrap', 'backoff', 'test'])
+  const litNum = (t: Term): number | null => {
+    const x = t.k === 'param' ? args[t.name] : t
+    return x?.k === 'lit' && x.lit.k === 'q' ? x.lit.v : null
+  }
+  if ([...nodes(plan)].some((n) => n.k === 'xform' && n.op === 'addSets')) return null
+  let most: number | null = null
+  for (const n of nodes(plan)) {
+    if (n.k !== 'session') continue
+    let total = 0
+    for (const st of n.steps.flatMap((s) => (s.k === 'repeat' ? Array.from({ length: s.n }, () => s.body).flat() : [s]))) {
+      if (st.target.k !== 'set') return null
+      if (!JUDGED.has(st.target.role)) continue
+      const c = st.count
+      const x = c.k === 'n' ? litNum(c.n) : c.k === 'range' ? litNum(c.min) : c.max
+      if (x === null) return null
+      total += Math.max(0, Math.floor(x))
+    }
+    most = most === null ? total : Math.max(most, total)
+  }
+  return most
+}
+
 export interface SlotContext {
   peers: Scope['peers']
   programFields: Record<string, Ty> | null
@@ -185,9 +219,23 @@ export function checkScheme(d: SchemeDef, reg: Registry, ctx: SlotContext = { pe
     writer,
   })
   checkDefaults(d.defaults, d.params, (pos) => ({ ...sc(pos), params: {} }), out)
+  checkLabels(d.labels, d.defaults, out)
   for (const [k, s] of Object.entries(d.state)) top(s.init, sc('init'), ['state', k, 'init'], s.ty, out)
   top(d.plan, sc('plan'), ['plan'], dom('session'), out)
   for (const [ev, h] of Object.entries(d.on)) if (h && !unknownEvent(ev, SLOT_EVENTS, ['on', ev], out)) top(h, sc('handler', ev as Writer), ['on', ev], { t: 'upd', scope: 'slot' }, out)
+  // Y2 (static half, read level): an atLeastSets on a verdict read of this
+  // scheme that no session shape of its own plan can satisfy. Decidable only
+  // where the plan's judged counts are literal (defaults substituted);
+  // param-shaped counts are the binding's business (checkProgram).
+  for (const [ev, h] of Object.entries(d.on)) {
+    if (!h) continue
+    for (const n of nodes(h))
+      if (n.k === 'event' && n.q.q === 'verdict' && n.q.success && typeof n.q.success === 'object' && Number.isInteger(n.q.success.atLeastSets) && n.q.success.atLeastSets >= 1) {
+        const most = maxJudgedSets(d.plan, d.defaults ?? {})
+        if (most !== null && n.q.success.atLeastSets > most)
+          out.push({ code: 'literalDomain', former: 'event', field: 'success', value: n.q.success.atLeastSets, path: ['on', ev], message: `atLeastSets ${n.q.success.atLeastSets} exceeds the ${most} judged set${most === 1 ? '' : 's'} any session of this plan can hold: it could never be satisfied` })
+      }
+  }
   // A library scheme's template renders, so its holes must be its params (as for a fn). It is checked
   // after the handlers here and before the body in checkFn: each order is fixed by the spec.
   if (isLib(d.ref.id)) templateHoles(d.says, d.params, out, d.defaults ?? {})
@@ -284,51 +332,43 @@ export function checkProgram(p: ProgramDef, reg: Registry): { at: string; errors
   nameDecls(Object.keys(p.days), ['days'], 'program', out)
   nameDecls(Object.keys(agState), ['aggregate', 'state'], 'program', out)
 
-  // Declared options (configurability round): each checked where it is
-  // declared, so a bad value is a typed refusal, never silent behavior.
-  if (p.e1rm) {
-    if (!['epley', 'brzycki', 'lombardi', 'mayhew'].includes(p.e1rm.formula))
-      out.push({ code: 'unknownName', name: String(p.e1rm.formula), path: ['e1rm', 'formula'], message: `no e1RM formula ${String(p.e1rm.formula)} (epley, brzycki, lombardi, mayhew)` })
-    if (p.e1rm.maxReps !== undefined && !(Number.isInteger(p.e1rm.maxReps) && p.e1rm.maxReps >= 1))
-      out.push({ code: 'literalDomain', former: 'program', field: 'e1rm.maxReps', value: p.e1rm.maxReps, path: ['e1rm', 'maxReps'], message: `maxReps is a whole number of reps from 1, got ${p.e1rm.maxReps}` })
-  }
-  if (p.adherenceWeeks) {
-    const ws = p.adherenceWeeks.calendarAligned?.weekStart
-    if (!WEEKDAYS.includes(ws))
-      out.push({ code: 'unknownName', name: String(ws), path: ['adherenceWeeks', 'calendarAligned', 'weekStart'], message: `no weekday ${String(ws)}` })
-  }
-  for (const [k, v] of Object.entries(p.volumeWeights ?? {}))
-    if (!['stage', 'cluster'].includes(k)) out.push({ code: 'unknownName', name: k, path: ['volumeWeights', k], message: `no volume weight ${k} (stage, cluster)` })
-    else if (!(typeof v === 'number' && v > 0 && v <= 1))
-      out.push({ code: 'literalDomain', former: 'program', field: `volumeWeights.${k}`, value: v as number, path: ['volumeWeights', k], message: `a volume weight lies in (0, 1], got ${v}` })
-  if (p.stripIntensifierOn) {
-    const cal = [...new Set(p.calendar.weeks)]
-    p.stripIntensifierOn.forEach((r, i) => {
-      if (!(ENUM_VALUES.weekRole as readonly string[]).includes(r)) out.push({ code: 'unknownName', name: String(r), path: ['stripIntensifierOn', i], message: `no week role ${String(r)}` })
-      else if (!cal.includes(r))
-        out.push({ code: 'literalDomain', former: 'program', field: 'stripIntensifierOn', value: r, path: ['stripIntensifierOn', i], message: `${r} is not a week of this program's calendar (${cal.join(', ')}): the rule could never fire` })
-    })
-  }
-  if (p.ties !== undefined && p.ties !== 'up')
-    out.push({ code: 'unknownName', name: String(p.ties), path: ['ties'], message: `no tie direction ${String(p.ties)} (the IR writes 'up'; down is the default and is omitted)` })
-  if (p.staleness) {
-    const readable = new Set([...p.facts, ...Object.values(p.slots).flatMap((b) => reg.schemes.get(keyOf(b.scheme))?.facts ?? [])])
-    for (const [fact, days] of Object.entries(p.staleness)) {
-      if (!reg.vocab.facts[fact]) out.push({ code: 'unknownName', name: fact, path: ['staleness', fact], message: `no fact ${fact}` })
-      else if (!readable.has(fact))
-        out.push({ code: 'undeclaredFact', fact, path: ['staleness', fact], message: `a staleness override for ${fact}, which neither the program nor any bound scheme reads` })
-      if (!(Number.isInteger(days) && days >= 1))
-        out.push({ code: 'literalDomain', former: 'program', field: 'staleness', value: days, path: ['staleness', fact], message: `staleness is a whole number of days from 1, got ${days}` })
+  // Declared options (configurability fix round): ONE table (options.ts)
+  // holds each option's domain, one-form law and prose, so a bad value is a
+  // typed refusal and an explicit default is never a second spelling.
+  for (const spec of PROGRAM_OPTIONS) if (p[spec.key] !== undefined) spec.check(p[spec.key], { reg, def: p }, out)
+  for (const [slot, b] of Object.entries(p.slots)) {
+    // U2: a slot's own grids. Shape and the one-form law live in the options
+    // table (checkSlotGrids); the dimension rule is the program-grid one (the
+    // unitMismatch posture), checked here per entry.
+    if (b.meta.grids !== undefined) {
+      checkSlotGrids(b.meta.grids, slot, p.grids, out)
+      for (const m of b.meta.grids && typeof b.meta.grids === 'object' ? (['load', 'distance'] as const) : []) {
+        const g = (b.meta.grids as { load?: unknown; distance?: unknown })[m]
+        if (g && typeof g === 'object' && typeof (g as { k?: unknown }).k === 'string')
+          top(g as Term, scope('example'), ['slots', slot, 'meta', 'grids', m], { t: 'q', dim: m === 'load' ? { mass: 1 } : { length: 1 } }, out)
+      }
     }
+    const at: Path = ['slots', slot, 'meta', 'success']
+    checkSuccessRule(b.meta.success, at, out, { allowAllSets: false, former: 'program' })
+    if (b.meta.success === undefined) continue
+    const s = reg.schemes.get(keyOf(b.scheme))
+    if (!s) continue
+    // Y2 (static half): where every judged set count of the bound plan is
+    // literal (binding arguments and scheme defaults substituted), an
+    // atLeastSets no session shape can satisfy is refused, the X4/C5 posture.
+    const su = b.meta.success
+    if (su && typeof su === 'object' && 'atLeastSets' in su && Number.isInteger(su.atLeastSets) && su.atLeastSets >= 1) {
+      const most = maxJudgedSets(s.plan, { ...(s.defaults ?? {}), ...b.args })
+      if (most !== null && su.atLeastSets > most)
+        out.push({ code: 'literalDomain', former: 'program', field: 'success', value: su.atLeastSets, path: at, message: `atLeastSets ${su.atLeastSets} exceeds the ${most} judged set${most === 1 ? '' : 's'} any session of this plan can hold: it could never be satisfied` })
+    }
+    // Y8: a slot rule no verdict read can ever consume is dead config, the
+    // same posture as a staleness override nothing reads. A read consumes it
+    // only when it carries no success of its own.
+    const reads = Object.values(s.on).flatMap((h) => (h ? [...nodes(h)] : []))
+    if (!reads.some((n) => n.k === 'event' && n.q.q === 'verdict' && n.q.success === undefined))
+      out.push({ code: 'literalDomain', former: 'program', field: 'success', value: String(typeof su === 'string' ? su : 'atLeastSets'), path: at, message: `every verdict read of ${keyOf(b.scheme)} declares its own rule (or it has none), so this slot rule is never consumed: dead config` })
   }
-  const checkSuccess = (su: SuccessRule | undefined, at: Path) => {
-    if (su === undefined || su === 'totalReps') return
-    if (!su || typeof su !== 'object' || !('atLeastSets' in su))
-      out.push({ code: 'unknownName', name: String(su), path: at, message: `no verdict success rule ${String(su)} (totalReps, or {atLeastSets: n}; omit it for allSets)` })
-    else if (!(Number.isInteger(su.atLeastSets) && su.atLeastSets >= 1))
-      out.push({ code: 'literalDomain', former: 'program', field: 'success', value: su.atLeastSets, path: at, message: `atLeastSets is a whole number of sets from 1, got ${su.atLeastSets}` })
-  }
-  for (const [slot, b] of Object.entries(p.slots)) checkSuccess(b.meta.success, ['slots', slot, 'meta', 'success'])
 
   // Slots: bindings, muscles, exactly one primary.
   const checked = new Set<string>()

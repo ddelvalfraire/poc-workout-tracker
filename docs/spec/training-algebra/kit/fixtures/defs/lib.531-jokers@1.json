@@ -21,20 +21,6 @@
      "mass": 1
     }
    }
-  },
-  "jokerStep": {
-   "t": "q",
-   "dim": {}
-  }
- },
- "defaults": {
-  "jokerStep": {
-   "k": "lit",
-   "lit": {
-    "k": "q",
-    "v": 1.05,
-    "unit": "pct"
-   }
   }
  },
  "facts": [],
@@ -539,8 +525,12 @@
            "name": "v38"
           },
           "b": {
-           "k": "param",
-           "name": "jokerStep"
+           "k": "lit",
+           "lit": {
+            "k": "q",
+            "v": 1.05,
+            "unit": "pct"
+           }
           }
          },
          "then": false
@@ -562,8 +552,12 @@
            "name": "v39"
           },
           "b": {
-           "k": "param",
-           "name": "jokerStep"
+           "k": "lit",
+           "lit": {
+            "k": "q",
+            "v": 1.05,
+            "unit": "pct"
+           }
           }
          },
          "then": false

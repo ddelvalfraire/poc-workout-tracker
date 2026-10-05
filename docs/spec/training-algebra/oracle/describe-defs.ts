@@ -17,6 +17,7 @@ import { cxOf, d, describe, fillTemplate, finish, overrideKeys, pad, phrase, sel
 import type { FactDecl } from './registry'
 import type { Calendar, Group, MacroDef, Policy, ProgramDef, SchemeDef, SlotBinding, Use } from './structure'
 import { WEEKDAYS, addDays, dayNum, dayText, defaultFrequency, type Adherence, type CalendarSpec, type CalendarState, type Drift, type Due, type Frequency, type Rotation, derivedAdherence } from './time'
+import { describeOptions } from './options'
 import { trimNumber as trim } from './units'
 
 type Decl<K extends string, T extends { k: K }> = { [X in K]: (t: Extract<T, { k: X }>, cx: Cx) => string }
@@ -106,7 +107,7 @@ export function describeSlot(s: SchemeDef, args: Record<string, string>, cx: Cx,
   // No override append here: this surface has only phrases, and the plan and
   // handler lines below state the bound values; describeProgram's slot line
   // carries the (with …) append from the binding's terms.
-  const c: Cx = { ...cx, lib: isLib(s.ref.id), params: filled, nouns, flags }
+  const c: Cx = { ...cx, lib: isLib(s.ref.id), params: filled, nouns, flags, defaulted: new Set(Object.keys(s.defaults ?? {})) }
   const lines = isLib(s.ref.id) ? [fillTemplate(s.says, filled, [])] : []
   if (s.facts.length) lines.push(`  Reads ${s.facts.map((f) => factLine(cx.reg.vocab.facts[f]!)).join('; ')}.`)
   for (const v of Object.values(s.state)) lines.push(`  Starts with ${v.ty.t === 'bool' ? `“${v.noun}”` : v.noun} = ${phrase(v.init, c)}; written by ${v.writableBy.join(', ') || 'nothing'}.`)
@@ -218,7 +219,7 @@ function useText(u: Use, cx: Cx): string {
   const f = cx.reg.fns.get(keyOf(u.def))
   const args: Record<string, string> = { ...Object.fromEntries(Object.entries(u.args).map(([k, v]) => [k, phrase(v, cx)])), [u.hole]: 'each session' }
   for (const [k, dt] of Object.entries(f?.defaults ?? {})) if (!(k in args)) args[k] = phrase(dt, cx)
-  return f && isLib(f.ref.id) ? fillTemplate(f.says, args, overrideKeys(f.says, f.defaults ?? {}, u.args)) : f ? phrase(f.body, { ...cx, params: args }) : u.def.id
+  return f && isLib(f.ref.id) ? fillTemplate(f.says, args, overrideKeys(f.says, f.defaults ?? {}, u.args), f.labels ?? {}) : f ? phrase(f.body, { ...cx, params: args, defaulted: new Set(Object.keys(f.defaults ?? {})) }) : u.def.id
 }
 const outcomeText = (o: NonNullable<Policy['outcome']>) =>
   `${o.demote.direction === 'any' ? 'any change to' : `any ${o.demote.direction} in`} your ${list(o.demote.kinds.map((k) => (k === 'load' ? 'working loads' : k === 'volume' ? 'set counts' : 'other fields')))} is proposed for your OK instead of applied${o.volumeKeep ? ', and set counts are not cut' : ''}`
@@ -287,7 +288,10 @@ export function macroHeadline(m: MacroDef): string {
 export function describeProgram(p: ProgramDef, cx: Cx): string[] {
   const pc0 = programCx(p, cx)
   const pc: Cx = p.adherenceWeeks ? { ...pc0, alignedWeeks: p.adherenceWeeks.calendarAligned.weekStart } : pc0
-  const grids = Object.entries(p.grids).map(([m, g]) => `${m === 'load' ? 'loads' : 'distances'} on a ${phrase(g as Term, pc)} grid${p.ties === 'up' ? ' (a target exactly between two grid steps rounds up)' : ''}`)
+  // The ties-up parenthetical is stated ONCE on the grid sentence (Y11),
+  // not per grid entry: the direction is one program fact.
+  const grids = Object.entries(p.grids).map(([m, g]) => `${m === 'load' ? 'loads' : 'distances'} on a ${phrase(g as Term, pc)} grid`)
+  if (grids.length && p.ties === 'up') grids[grids.length - 1] += ' (a target exactly between two grid steps rounds up)'
   const lines = [
     headline(p),
     `  Block weeks: ${p.calendar.weeks.join(', ')}${p.calendar.repeat === 'cycle' ? ', repeating' : ', once'}. ${DECL_DESCRIBERS.drift[p.calendar.drift]}${grids.length ? ` ${sentence(grids.join('; '))}` : ''}`,
@@ -296,25 +300,11 @@ export function describeProgram(p: ProgramDef, cx: Cx): string[] {
   const freqs = p.frequency.length ? p.frequency : defaultFrequency(p.rotation)
   lines.push(`  Attendance${p.frequency.length ? '' : ' (from the rotation)'}: ${freqs.map((f, i) => (i ? lower(freqText(f, pc)) : freqText(f, pc))).join('; ')}. If you don't train for ${p.lapseAfterDays} days, attendance stops counting until your next session.`)
   if (p.facts.length) lines.push(`  Reads ${p.facts.map((f) => factLine(cx.reg.vocab.facts[f]!, p.staleness?.[f])).join('; ')}.`)
-  // The declared options (configurability round): a declared choice is
-  // stated; a default says nothing.
-  if (p.e1rm) {
-    const name = `${p.e1rm.formula.charAt(0).toUpperCase()}${p.e1rm.formula.slice(1)}`
-    lines.push(`  Estimated one-rep maxes use the ${name} formula${p.e1rm.maxReps !== undefined ? `, from sets of at most ${p.e1rm.maxReps} effective reps` : ''}.`)
-  }
-  if (p.volumeWeights) {
-    const parts = [
-      ...(p.volumeWeights.stage !== undefined ? [`an intensifier stage counts as ${pctText(p.volumeWeights.stage)} of a set`] : []),
-      ...(p.volumeWeights.cluster !== undefined ? [`a clustered set counts as ${pctText(p.volumeWeights.cluster)} of a set`] : []),
-    ]
-    lines.push(`  Volume counting: ${parts.join('; ')}.`)
-  }
-  if (p.stripIntensifierOn) lines.push(`  ${p.stripIntensifierOn.length ? `Intensifiers are dropped in ${list(p.stripIntensifierOn.map((r) => `${r}`))} weeks` : 'No week role drops the intensifier'}.`)
-  // A staleness override for a fact only a bound scheme reads is stated on
-  // its own line, so the declared rule is never mute (C8).
-  const extraStale = Object.entries(p.staleness ?? {}).filter(([f]) => !p.facts.includes(f))
-  if (extraStale.length)
-    lines.push(`  Freshness: ${extraStale.map(([f, days]) => `${cx.reg.vocab.facts[f]?.noun ?? f} is ignored once older than ${days === 1 ? 'a day' : `${days} days`}`).join('; ')} (this program's rule).`)
+  // The declared options (one table, options.ts): a declared choice is
+  // stated; a default says nothing. Defined over CHECKED programs only, as
+  // this whole describer is: a refused IR (an empty volumeWeights, a
+  // malformed option) is the checker's to report, not this surface's.
+  lines.push(...describeOptions(p, cx.reg))
   for (const pol of p.policies) lines.push(`  ${policyText(pol, pc)}`)
   const stack = stackingText(p, pc)
   if (stack.length) lines.push(`  Together (${p.hitPolicy === 'first' ? 'only the first matching rule applies' : 'every matching rule applies, in the order listed'}):`, ...stack.map((x) => `    ${x}`))
@@ -325,8 +315,11 @@ export function describeProgram(p: ProgramDef, cx: Cx): string[] {
     const args = bindingArgs(p, b, cx)
     const over = overrideKeys(s.says, s.defaults ?? {}, b.args)
     const su = b.meta.success ? ` Success: ${successText(b.meta.success).replace(/^ \(|\)$/g, '')}.` : ''
-    if (isLib(s.ref.id)) lines.push(`  ${slot}: ${fillTemplate(s.says, args, over)}.${su}`)
-    else lines.push(`  ${labelled(slot, describe(s.plan, { ...pc, params: args, ...(b.meta.success ? { slotSuccess: b.meta.success } : {}) }), '    ')}${su}`)
+    // U2: a slot's own grid is a slot fact, stated on the slot's line in the
+    // grid's declared unit (the grid is never converted).
+    const gr = b.meta.grids ? ` ${sentence(Object.entries(b.meta.grids).map(([m, g]) => `${m === 'load' ? 'loads' : 'distances'} on a ${phrase(g as Term, pc)} grid (this slot's grid)`).join('; '))}` : ''
+    if (isLib(s.ref.id)) lines.push(`  ${slot}: ${fillTemplate(s.says, args, over, s.labels ?? {})}.${su}${gr}`)
+    else lines.push(`  ${labelled(slot, describe(s.plan, { ...pc, params: args, defaulted: new Set(Object.keys(s.defaults ?? {})), ...(b.meta.success ? { slotSuccess: b.meta.success } : {}) }), '    ')}${su}${gr}`)
   }
   for (const [ev, h] of Object.entries(p.aggregate?.on ?? {})) if (h) lines.push(`  ${labelled(`${whenText(ev, p.calendar)} (muscle plan)`, describe(h, pc), '    ')}`)
   for (const [name, e] of Object.entries(p.exports)) lines.push(`  Hands on ${name}: ${pc.peer(e.slot, e.field)} when the program ends.`)
@@ -348,6 +341,13 @@ export function describeMacroPhases(m: MacroDef, cx: Cx): string[] {
 }
 
 // ── calendar facts ──────────────────────────────────────────────────────────
+
+/** The instance's ACTIVE lapse rule (Y9): the spec carries an activation
+ *  override where one was given; the program description keeps the declared
+ *  value. */
+export function lapseText(spec: CalendarSpec): string {
+  return `If you don't train for ${spec.lapseAfterDays} days, attendance stops counting until your next session.`
+}
 
 /** "Rest today. Your next workout is due Wednesday: …", or, when the search
  *  horizon ran out, only the lower bound it proved. */

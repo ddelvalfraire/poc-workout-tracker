@@ -176,7 +176,7 @@ for (const run of RUNS)
         const sch = reg.schemes.get(keyOf(run.def.slots[slot]!.scheme))!
         const nouns = Object.fromEntries(Object.entries(sch.state).map(([k, v]) => [k, v.noun]))
         const flags = new Set(Object.entries(sch.state).filter(([, v]) => v.ty.t === 'bool').map(([k]) => k))
-        proseFor.set(key, describe(term, { ...pc, lib: isLib(sch.ref.id), params: bindingArgs(run.def, run.def.slots[slot]!, cx), nouns, flags }))
+        proseFor.set(key, describe(term, { ...pc, lib: isLib(sch.ref.id), params: bindingArgs(run.def, run.def.slots[slot]!, cx), nouns, flags, defaulted: new Set(Object.keys(sch.defaults ?? {})) }))
       }
       return proseFor.get(key)!
     }

@@ -46,6 +46,10 @@ export interface Cx {
   /** The program's calendar-aligned adherence week start (C3), for the
    *  frequency prose; absent under the anchor-tumbling default. */
   alignedWeeks?: string
+  /** The enclosing definition's DEFAULTED params (C10): a range over them
+   *  compacts like the literal it replaced (Y11); other param ranges keep
+   *  their spelled-out form. */
+  defaulted?: ReadonlySet<string>
 }
 
 export function cxOf(reg: Registry, over: Partial<Cx> = {}): Cx {
@@ -158,13 +162,17 @@ function block(arms: [string, string][]): string {
   return arms.map(([h, b]) => `\n- ${h}:${b.startsWith('\n') ? pad(b, '  ') : ` ${b}`}`).join('')
 }
 const isVerdict = (t: Term) => t.k === 'event' && t.q.q === 'verdict'
-/** The declared success rule's phrase (C1); empty for the allSets default. */
-export const successText = (su: SuccessRule | undefined): string =>
-  su === undefined ? '' : su === 'totalReps' ? ' (counting total reps across all sets)' : ` (at least ${su.atLeastSets} sets must fully hit)`
+/** The declared success rule's phrase (C1); empty for the allSets default,
+ *  stated when a READ spells 'allSets' to override a slot rule (Y8). */
+export const successText = (su: SuccessRule | 'allSets' | undefined): string =>
+  su === undefined ? '' : su === 'allSets' ? ' (every set at its own bar)' : su === 'totalReps' ? ' (counting total reps across all sets)' : ` (at least ${su.atLeastSets} sets must fully hit)`
 function verdictArms(on: Term, cx: Cx): Record<string, string> {
   const q = on.k === 'event' && on.q.q === 'verdict' ? on.q : null
   const what = !q || q.steps === 'working' ? 'working set' : `set of ${q.steps.map((s) => `“${s}”`).join(' and ')}`
-  const su = q?.success ?? (q ? cx.slotSuccess : undefined)
+  // An explicit 'allSets' on the read overrides the slot rule back to the
+  // per-set arms (Y8).
+  const su0 = q?.success ?? (q ? cx.slotSuccess : undefined)
+  const su = su0 === 'allSets' ? undefined : su0
   const edge = q?.bound === 'top' ? 'the top of its range' : 'its target'
   if (su === 'totalReps')
     return {
@@ -248,7 +256,19 @@ function boundText(m: string, b: BoundIR, cx: Cx): string {
       const [pa, pz] = [pctOf(a, cx), pctOf(z, cx)]
       if (pa && pz && pa.base === pz.base) return `${lead}${trim(pa.n)}–${trim(pz.n)}% of ${pa.base}`
       const same = a.k === 'lit' && z.k === 'lit' && a.lit.k === 'q' && z.lit.k === 'q' && a.lit.unit === z.lit.unit && !a.lit.per
-      return `${lead}${same ? `${trim(shownOf(a.lit))}–${litText(z.lit, cx)}` : `${d(a, cx)} to ${d(z, cx)}`}`
+      if (same) return `${lead}${trim(shownOf((a as Extract<Term, { k: 'lit' }>).lit))}–${litText((z as Extract<Term, { k: 'lit' }>).lit, cx)}`
+      // A range whose edges are literals THROUGH a DEFAULTED parameter (a
+      // promoted C10 constant) compacts the same way (Y11): "8–12 reps",
+      // exactly as the pre-promotion literal spelled it. A non-defaulted
+      // param range keeps its spelled-out form, as it always had.
+      const viaDefault = (x: Term) => x.k === 'lit' || (x.k === 'param' && !!cx.defaulted?.has(x.name))
+      if (viaDefault(a) && viaDefault(z)) {
+        const [ra, rz] = [d(a, cx), d(z, cx)]
+        const m = /^(\d+(?:\.\d+)?) (.+)$/.exec(ra)
+        const n = /^(\d+(?:\.\d+)?) (.+)$/.exec(rz)
+        if (m && n && m[2] === n[2]) return `${lead}${m[1]}–${rz}`
+      }
+      return `${lead}${d(a, cx)} to ${d(z, cx)}`
     }
     case 'atLeast':
       return m === 'reps' ? `as many reps as possible (at least ${d(b.v, cx)})` : `${decl?.lead === 'at' ? `${decl.noun} ` : lead}at least ${d(b.v, cx)}`
@@ -453,10 +473,10 @@ export const DESCRIBERS: { [K in Term['k']]: (n: Extract<Term, { k: K }>, cx: Cx
     // A defaulted parameter the call omits reads as its default (C10).
     for (const [k, dt] of Object.entries(f.defaults ?? {})) if (!(k in args)) args[k] = d(dt, cx)
     const lib = isLib(t.def.id)
-    const body = () => d(f.body, { ...cx, zoom: 'intent', lib, params: args, names: new Map(cx.names) })
+    const body = () => d(f.body, { ...cx, zoom: 'intent', lib, params: args, names: new Map(cx.names), defaulted: new Set(Object.keys(f.defaults ?? {})) })
     // D5: a user definition's template does not render; its mechanism does.
     if (!lib) return body()
-    const filled = fillTemplate(f.says, args, overrideKeys(f.says, f.defaults ?? {}, t.args))
+    const filled = fillTemplate(f.says, args, overrideKeys(f.says, f.defaults ?? {}, t.args), f.labels ?? {})
     return cx.zoom === 'intent' ? filled : `${filled} [= ${body()}]`
   },
   param: (t, cx) => cx.params[t.name] ?? `{${t.name}}`,
@@ -530,10 +550,12 @@ export function phrase(t: Term, cx: Cx): string {
 }
 
 /** Fill a library template's holes and append the non-default arguments for
- *  hole-less defaulted params, so a declared override is never mute (C10). */
-export function fillTemplate(says: string, args: Record<string, string>, overrides: readonly string[]): string {
+ *  hole-less defaulted params, so a declared override is never mute (C10).
+ *  The append names each param by its declared display LABEL (Y11), never
+ *  the internal identifier. */
+export function fillTemplate(says: string, args: Record<string, string>, overrides: readonly string[], labels: Record<string, string> = {}): string {
   const filled = says.replace(/\{(\w+)\}/g, (_, k: string) => args[k] ?? `{${k}}`)
-  return overrides.length ? `${filled} (with ${overrides.map((k) => `${k} = ${args[k]}`).join(', ')})` : filled
+  return overrides.length ? `${filled} (with ${overrides.map((k) => `${labels[k] ?? k} = ${args[k]}`).join(', ')})` : filled
 }
 /** The defaulted, hole-less params a call overrides with a NON-default term;
  *  an argument spelling the default renders nothing, one prose form. */

@@ -3,8 +3,8 @@
 This directory is the frozen v3 specification of the training algebra, the language that defines programs, progression, and prescriptions. It has three parts.
 
 - `oracle/` is the executable specification. A strict TypeScript package whose behavior defines the language. `oracle/rationale.md` explains each design choice.
-- `kit/` is the conformance kit for a second implementation. It holds `SPEC.md`, the IR's JSON Schema (`ir-schema.json`), the worked corpus as 44 canonical definitions and 12 registries, and 2,584 fixtures recorded from the oracle (2,640 schema-validated files in all). Where `SPEC.md` and a fixture disagree, the fixture is normative.
-- `design/` holds the briefs, specs, decision memo, and test corpus the language was designed from. `trail/` holds the decision log (`decisions.tsv`) and the prompts of the later rounds (semantics, weekly basis, correctness, configurability).
+- `kit/` is the conformance kit for a second implementation. It holds `SPEC.md`, the IR's JSON Schema (`ir-schema.json`), the worked corpus as 49 canonical definitions and 12 registries, and 2,679 fixtures recorded from the oracle (2,740 schema-validated files in all). Where `SPEC.md` and a fixture disagree, the fixture is normative.
+- `design/` holds the briefs, specs, decision memo, and test corpus the language was designed from. `trail/` holds the decision log (`decisions.tsv`) and the prompts of the later rounds (semantics, weekly basis, correctness, configurability, configurability fix, units).
 
 None of this is app code. The root `tsconfig.json`, `eslint.config.mjs`, and `vitest.config.ts` exclude this directory, and nothing in `src/` imports it.
 
@@ -26,7 +26,7 @@ Before the crate API freezes, read `design/seam-open-items.md`. It lists what th
 
 ## Frozen snapshot
 
-This is the ratified package plus its semantics review round, one owner-directed language change (the weekly basis), a correctness round and a configurability round. The earlier v1, v2, and v3 synthesis snapshots and the pre-ratification kits are intentionally not archived; `trail/decisions.tsv` records how the design got here. If the oracle and any older document disagree, the oracle wins.
+This is the ratified package plus its semantics review round, one owner-directed language change (the weekly basis), a correctness round, a configurability round, a configurability fix round and a units addendum. The earlier v1, v2, and v3 synthesis snapshots and the pre-ratification kits are intentionally not archived; `trail/decisions.tsv` records how the design got here. If the oracle and any older document disagree, the oracle wins.
 
 After ratification, a three-reader adversarial semantics review drove one more round. It made 23 fixes and 5 portability pins (`design/semantics-fix-spec.md`), each guarded by the 49 regressions in `oracle/semfix.test.ts`; `trail/arena2/semfix-prefix.txt` shows them failing against the pre-round oracle.
 
@@ -35,3 +35,7 @@ The owner then ruled that a semantics choice which is really a coaching judgment
 A second adversarial review (three reviewers, correctness and paternalism) drove two more rounds. The correctness round made six fixes, X1 to X6 (`design/patfix-spec.md`). They cover the weekly read's absence gate, batched against daily day-close delivery on anchored calendars, the typing of widened weekly options, disjoint `roles` lists, the lapse day at the end of a pause, and one e1RM rule. The 11 tests in `oracle/patfix.test.ts` guard them, and `trail/arena2/patfix-prefix.txt` shows them failing against the pre-round oracle.
 
 The configurability round (`design/config-spec.md`) turned eleven more coaching judgments into declared options with describable defaults, C1 to C11. They are the verdict success rule, the e1RM estimator, adherence week alignment, technique-stage volume weights, intensifier-strip roles, sink tie direction, per-instance lapse threshold, per-program fact staleness, `scaleSets` allowZero, defaulted parameters on `fn` and `scheme` definitions, and the viewer's display unit. A program that declares none of them is unchanged. The 27 tests in `oracle/config.test.ts` cover the round, and `trail/arena2/config-prefix.txt` is the fail-first evidence. `oracle/rationale.md` ledgers both rounds.
+
+The configurability fix round (`design/cfgfix-spec.md`) answered a three-reader interrogation of the configurability round with Y1 to Y13. It republishes five library definitions as `@2`, adds `oracle/options.ts` and `oracle/defs-v1.ts`, and is guarded by the 25 tests in `oracle/cfgfix.test.ts`. `trail/arena2/cfgfix-prefix.txt` is the fail-first evidence.
+
+The units addendum (`design/units-spec.md`) states the mixed-unit laws and makes U1 to U3: the pinned kg/lb conversion, per-slot grids and a mixed-unit composition fixture. The 14 tests in `oracle/units.test.ts` cover it, and `trail/arena2/units-prefix.txt` is the fail-first evidence.

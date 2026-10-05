@@ -59,7 +59,7 @@ import * as ER from './endurance-rehab'
 import * as P from './programs'
 import { BASE_VOCAB, FACT_DECLS, METRIC_DECLS, type FactDecl, type MetricDecl, type Vocab } from './registry'
 import { amrap, cal, deathBy, emom, exactly, fact, freq, kindOf, macro, per, phase, program, scheme, sel, session, set, setsBetween, swapExercise } from './structure'
-import { activate, addDays, calendarSpecOf, completedFraction, dayNum, dayText, dueVerdict, feasibility, localDay, matches, occurrenceOf, reconcile, selKey, stepCalendar, weekday, type CalendarState, type Occurrence } from './time'
+import { activate, addDays, calendarSpec, completedFraction, dayNum, dayText, dueVerdict, feasibility, localDay, matches, occurrenceOf, reconcile, selKey, stepCalendar, weekday, type CalendarState, type Occurrence } from './time'
 import type { MacroDef, Policy, ProgramDef, SchemeDef, StateDecl } from './structure'
 
 const reg = publish([...P.PUBLISHED, ...ER.PUBLISHED])
@@ -370,7 +370,7 @@ const mislabeled = clone(P.w531.def)
 report(`a mass field labelled kind 'flag' in JSON: the label is ignored, its kind is ${kindOf(mislabeled.state['tm']!.ty)}, the cut law reaches it`, checkScheme(mislabeled, reg))
 
 console.log('\n  The ingest refusal (runtime, time.ts):')
-const legsSpec = calendarSpecOf(P.legsFrequency.def, calReads(P.legsFrequency.def, reg), 'i', localDay('2026-10-05'), localDay('2026-10-05'))
+const legsSpec = calendarSpec(P.legsFrequency.def, calReads(P.legsFrequency.def, reg), 'i', localDay('2026-10-05'), localDay('2026-10-05'))
 const empty = occurrenceOf({ workoutId: 'w17', localDay: localDay('2026-10-17'), day: 'A', slots: ['squat', 'bench'], startedEarly: false, loggedSets: 0 }, legsSpec)
 console.log(`  ${'refused' in empty ? 'REFUSED' : 'OK     '} a session closed with zero logged sets`)
 if ('refused' in empty) console.log(`          ${empty.refused}: ${empty.workoutId} is a non-event; no rule fires, no streak moves, no window counts it, no gap resets`)
@@ -579,7 +579,7 @@ console.log('\n  A pause from 28 to 30 October voids the window it touches (no p
 for (const a of pausedSt.adherence.slice(-4)) console.log(`    ${adherenceText(pausedSt, a, legsSpec)}`)
 
 console.log('\n  Late logs only extend what the calendar knows (S8):')
-const runSpec = calendarSpecOf(ER.couchTo5k.def, calReads(ER.couchTo5k.def, reg), 'r', localDay('2026-10-05'), localDay('2026-10-05'))
+const runSpec = calendarSpec(ER.couchTo5k.def, calReads(ER.couchTo5k.def, reg), 'r', localDay('2026-10-05'), localDay('2026-10-05'))
 const run = (id: string, d: string) => ({ k: 'sessionClosed' as const, causeKey: `session:${id}` as const, occurrence: { workoutId: id, localDay: localDay(d), day: 'R', slots: ['run'], muscles: ['legs'], startedEarly: false }, adHoc: false })
 let late = stepCalendar(runSpec, activate(runSpec), run('r9', '2026-10-09'))
 late = stepCalendar(runSpec, late, run('r7', '2026-10-07'))
@@ -587,7 +587,7 @@ console.log(`  A run on Friday 9th, then Wednesday 7th's run syncs late: the las
 const tempoGap = clone(ER.hrTempo.def)
 tempoGap.plan = { k: 'if', c: T(orElse(known(cal.gap(sel.slot('tempo')), (g) => ge(g, days(7))), no)), a: tempoGap.plan, b: tempoGap.plan }
 const gapReg = withScheme(tempoGap)
-const gapSpec = calendarSpecOf(ER.hrTempoBlock.def, calReads(ER.hrTempoBlock.def, gapReg), 't', localDay('2026-10-05'), localDay('2026-10-05'))
+const gapSpec = calendarSpec(ER.hrTempoBlock.def, calReads(ER.hrTempoBlock.def, gapReg), 't', localDay('2026-10-05'), localDay('2026-10-05'))
 console.log(`  A tempo plan that reads "days since your last tempo session": the calendar tracks ${gapSpec.tracked.map((s) => selKey(s)).join(', ')}.`)
 
 console.log('\n  The due verdict (prescribe, soft):')

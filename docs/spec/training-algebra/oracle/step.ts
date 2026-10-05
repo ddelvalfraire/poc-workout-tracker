@@ -59,7 +59,10 @@ export function activate(rt: Runtime, params: Record<string, Value>, facts: Fact
     progress: { week: 0, slotSessions: {}, weekEntries: 0, sessions: 0, weekSlots: [], cycleSlots: [] },
     status: 'active',
     calendar: activateCalendar(rt.spec),
-    instance: { id: rt.spec.instance, anchor: rt.spec.anchor, activatedOn: rt.spec.activatedOn, predecessor: null },
+    // The activation overrides are DURABLE: recorded on the instance, so a
+    // replay that rebuilds the runtime from this head sees the same calendar
+    // spec and window geometry without the activation call (Y9).
+    instance: { id: rt.spec.instance, anchor: rt.spec.anchor, activatedOn: rt.spec.activatedOn, ...(rt.overrides ? { overrides: rt.overrides } : {}), predecessor: null },
   }
   const inp: Inputs = { facts, today, earlierToday: 0, reads: newReads() }
   const slots = Object.keys(rt.def.slots)

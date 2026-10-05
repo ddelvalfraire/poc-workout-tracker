@@ -60,7 +60,7 @@ export function synthesize(rt: Runtime, issued: IssuedSession, how: 'hit' | 'mis
       }
       const due = (): number => {
         const view = currentView(issued, resolutions).find((v) => v.slot === sl.slot)!
-        return st.count.k === 'n' ? st.count.n : st.count.k === 'range' ? st.count.min : setsDue(rt, view, view.steps.find((x) => x.key === st.key)!, mine)
+        return st.count.k === 'n' ? st.count.n : st.count.k === 'range' ? st.count.min : setsDue(rt, view, view.steps.find((x) => x.key === st.key)!, mine, issued.stamp)
       }
       for (let i = 0; i < st.sets.length && i < due(); i++) {
         const t = target(i)
@@ -164,7 +164,9 @@ export function projectMacro(reg: Registry, m: MacroDef, assume: Assume, facts: 
     if (!prog || weeks >= totalWeeks) break
     const handoff = ctxOf(reg, { ports: { peer: (slot, field, of) => (of === 'prevPhase' ? (prev?.[slot]?.[field] ?? none({ k: 'stateUnset', field: `${slot}.${field}` })) : none({ k: 'stateUnset', field })) } })
     const params = Object.fromEntries(Object.entries(ph.args).map(([k, t]) => [k, evaluate(t, handoff).value]))
-    const rt = runtimeOf(reg, prog, { id: `${m.ref.id}#${i}`, anchor: start, activatedOn: start }, { label: ph.label, transform: ph.transform })
+    const rt0 = runtimeOf(reg, prog, { id: `${m.ref.id}#${i}`, anchor: start, activatedOn: start }, { label: ph.label, transform: ph.transform })
+    if ('code' in rt0) throw new Error(`project: refused ${JSON.stringify(rt0)} (no overrides were given)`)
+    const rt = rt0
     let ledger = ledgerOf(activate(rt, params, facts))
     const L = ph.length
     const cap = L.k === 'fixed' ? prog.calendar.weeks.length : L.k === 'bounded' ? L.max : totalWeeks - weeks
@@ -236,7 +238,9 @@ export function runSchemeExample(reg: Registry, s: SchemeDef, ex: SchemeExample)
   const readings: FactReading[] = Object.entries(ex.facts).map(([fact, t]) => ({ fact, key: null, value: evaluate(t, cx).value, observedOn: EXAMPLE_DAY }))
   const facts: FactSource = { get: (fact) => readings.find((r) => r.fact === fact) ?? null }
   const withS: Registry = { ...reg, schemes: new Map([...reg.schemes, [keyOf(s.ref), s]]) }
-  const rt = runtimeOf(withS, exampleProgram(s, ex.args), { id: 'example', anchor: EXAMPLE_DAY, activatedOn: EXAMPLE_DAY })
+  const rt0 = runtimeOf(withS, exampleProgram(s, ex.args), { id: 'example', anchor: EXAMPLE_DAY, activatedOn: EXAMPLE_DAY })
+  if ('code' in rt0) throw new Error(`runSchemeExample: refused ${JSON.stringify(rt0)} (no overrides were given)`)
+  const rt = rt0
   const head = activate(rt, {}, facts)
   const p = project(rt, ledgerOf(head), Infinity, ex.assume === 'allMiss' ? { k: 'allMiss' } : { k: 'asPrescribed' }, facts, EXAMPLE_DAY, ex.afterSessions)
   const got = p.ledger.head.state['x'] ?? {}

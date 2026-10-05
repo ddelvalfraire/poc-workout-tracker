@@ -18,20 +18,6 @@
    "dim": {
     "mass": 1
    }
-  },
-  "morningGate": {
-   "t": "ord",
-   "scale": "pain"
-  }
- },
- "defaults": {
-  "morningGate": {
-   "k": "lit",
-   "lit": {
-    "k": "ord",
-    "scale": "pain",
-    "level": 4
-   }
   }
  },
  "facts": [
@@ -100,8 +86,12 @@
       "name": "v5"
      },
      "b": {
-      "k": "param",
-      "name": "morningGate"
+      "k": "lit",
+      "lit": {
+       "k": "ord",
+       "scale": "pain",
+       "level": 4
+      }
      }
     },
     "then": false

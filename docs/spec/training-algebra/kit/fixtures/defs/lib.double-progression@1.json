@@ -33,36 +33,6 @@
      "mass": 1
     }
    }
-  },
-  "lo": {
-   "t": "q",
-   "dim": {
-    "rep": 1
-   }
-  },
-  "hi": {
-   "t": "q",
-   "dim": {
-    "rep": 1
-   }
-  }
- },
- "defaults": {
-  "lo": {
-   "k": "lit",
-   "lit": {
-    "k": "q",
-    "v": 8,
-    "unit": "rep"
-   }
-  },
-  "hi": {
-   "k": "lit",
-   "lit": {
-    "k": "q",
-    "v": 12,
-    "unit": "rep"
-   }
   }
  },
  "facts": [
@@ -109,8 +79,12 @@
         "name": "v64"
        },
        "reps": {
-        "k": "param",
-        "name": "hi"
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 12,
+         "unit": "rep"
+        }
        },
        "rir": {
         "k": "lit",
@@ -156,12 +130,20 @@
       "reps": {
        "b": "range",
        "min": {
-        "k": "param",
-        "name": "lo"
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 8,
+         "unit": "rep"
+        }
        },
        "max": {
-        "k": "param",
-        "name": "hi"
+        "k": "lit",
+        "lit": {
+         "k": "q",
+         "v": 12,
+         "unit": "rep"
+        }
        }
       },
       "load": {

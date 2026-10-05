@@ -14,6 +14,11 @@ import { ctxOf, evaluate } from './evaluate'
 import * as ER from './endurance-rehab'
 import { currentView, resolveLive } from './issue'
 import { evalProgram, newReads, runtimeOf } from './ports'
+
+const asRt = (r: ReturnType<typeof runtimeOf>): Extract<ReturnType<typeof runtimeOf>, { reg: unknown }> => {
+  if ('code' in r) throw new Error(`runtimeOf refused: ${JSON.stringify(r)}`)
+  return r
+}
 import * as P from './programs'
 import { exampleProgram, project, projectMacro } from './project'
 import { activate, ledgerOf, prescribe } from './step'
@@ -43,7 +48,7 @@ export function evaluatorSection(reg: Registry, h: (s: string) => void, say: (pr
   const nouns = (def: ProgramDef) => (scope: string, field: string) =>
     scope === 'program' ? (def.aggregate?.state[field]?.noun ?? field) : `${scope} ${reg.schemes.get(`${def.slots[scope]!.scheme.id}@${def.slots[scope]!.scheme.version}`)?.state[field]?.noun ?? field}`
   for (const [family, def] of families) {
-    const rt = runtimeOf(reg, def, { id: def.ref.id, anchor: D0, activatedOn: D0 })
+    const rt = asRt(runtimeOf(reg, def, { id: def.ref.id, anchor: D0, activatedOn: D0 }))
     const head = activate(rt, {}, facts(D0))
     const post = def.ref.id === 'prog/achilles-loading' ? [{ fact: 'pain', key: null, value: { v: 'ord', scale: 'pain', level: 1 } as Value, observedOn: D0 }] : []
     const p = project(rt, ledgerOf(head), 2, { k: 'asPrescribed' }, facts(D0), D0, def.ref.id === 'prog/achilles-loading' ? 6 : 400, post)
@@ -61,7 +66,7 @@ export function evaluatorSection(reg: Registry, h: (s: string) => void, say: (pr
   console.log(`  Inverse Epley: ${tr(P.loadFor({ e1rm: kg(120), reps: reps(5), rir: rir(1) }).term)}`)
   console.log(`  APRE chart, 9 reps: ${tr(P.apreAdjust({ reps: reps(9), small: lb(5), big: lb(10) }).term)}`)
   const apreDef: ProgramDef = { ...exampleProgram(P.apreTopBackoff.def, { lift: exercise('wger:192').term, small: lb(5).term, big: lb(10).term, backoffs: sets(2).term, keep: pct(90).term }), grids: { load: lb(5).term } }
-  const rt = runtimeOf(reg, apreDef, { id: 'apre', anchor: D0, activatedOn: D0 })
+  const rt = asRt(runtimeOf(reg, apreDef, { id: 'apre', anchor: D0, activatedOn: D0 }))
   const r = prescribe(rt, ledgerOf(activate(rt, {}, facts(D0))), 'A', facts(D0), D0)
   if (!('code' in r.issued)) {
     const issued = r.issued
@@ -86,7 +91,7 @@ export function evaluatorSection(reg: Registry, h: (s: string) => void, say: (pr
   }
 
   h("8c. EVALUATOR: the weekly read's declared basis, across RP's deload weekEnd")
-  const rp = runtimeOf(reg, P.rpMeso.def, { id: P.rpMeso.def.ref.id, anchor: D0, activatedOn: D0 })
+  const rp = asRt(runtimeOf(reg, P.rpMeso.def, { id: P.rpMeso.def.ref.id, anchor: D0, activatedOn: D0 }))
   const start = ledgerOf(activate(rp, {}, facts(D0)))
   const deload = project(rp, start, 4, { k: 'asPrescribed' }, facts(D0), D0).ledger.head
   console.log(`  RP after four accumulation weeks, asPrescribed: block week ${deload.progress.week} (${P.rpMeso.def.calendar.weeks[deload.progress.week]}) is the one its next weekEnd closes.`)

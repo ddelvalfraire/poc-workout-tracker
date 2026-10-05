@@ -11,7 +11,7 @@ import * as ER from './endurance-rehab'
 import { publish } from './checkdefs'
 import { currentView, resolveLive, setsDue } from './issue'
 import { eventPort, verdictOf } from './judge'
-import { aggPort, entriesPerWeek, newReads, nextDay, runtimeOf, sessionsPerWeek, trainWeekOf } from './ports'
+import { aggPort, entriesPerWeek, newReads, nextDay, runtime, sessionsPerWeek, trainWeekOf } from './ports'
 import * as P from './programs'
 import { exampleProgram, project, projectMacro } from './project'
 import { activate, exportsOf, ingest, ledgerOf, prescribe, replay, step } from './step'
@@ -232,7 +232,7 @@ t('EC-162 EC-164 BV-77 L10 EC-114', 'the deload-week policy transforms only delo
   eq(wk(3).stamp.policies, [0], 'the role policy applied')
 })
 t('EC-163', 'policies apply before the phase transform: a deload week under a tempo phase gets both, the transform last', () => {
-  const rt = runtimeOf(reg, P.rpMeso.def, { id: 'phase', anchor: D0, activatedOn: D0 }, { label: 'p', transform: { def: P.withTempo.def.ref, hole: 's', args: { t: { k: 'tempo', ecc: 3, pause: 0, con: 1, top: 0 } } } })
+  const rt = runtime(reg, P.rpMeso.def, { id: 'phase', anchor: D0, activatedOn: D0 }, { label: 'p', transform: { def: P.withTempo.def.ref, hole: 's', args: { t: { k: 'tempo', ecc: 3, pause: 0, con: 1, top: 0 } } } })
   let r: Run = { rt, ledger: ledgerOf(activate(rt, {}, F)) }
   const all = train(r, 9, D0)
   r = all.run

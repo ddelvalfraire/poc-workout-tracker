@@ -107,7 +107,7 @@ t('', 'F1 adjudication (reachability): slotsFor is possibly-empty, so nth over i
 
 t('', 'F1: the activation boundary refuses an empty list for a non-empty (list1) program parameter', () => {
   const def = { ...clone(P.linear3x5.def), params: { ladder: { t: 'list', of: { t: 'q', dim: {} }, nonEmpty: true } as Ty } } as ProgramDef
-  const rt = PO.runtimeOf(reg, def, { id: 'f1', anchor: D0, activatedOn: D0 })
+  const rt = PO.runtime(reg, def, { id: 'f1', anchor: D0, activatedOn: D0 })
   let msg = ''
   try {
     ST.activate(rt, { ladder: { v: 'list', items: [] } }, F)
@@ -358,7 +358,7 @@ t('', 'F9 (semrev-c p14): a skip after blockEnd is refused programComplete; the 
 
 t('', 'F10 (semrev-a p9): activated before the anchor, the anchor day closes nothing before the program starts (5/3/1 week 1)', () => {
   const def = { ...P.fiveThreeOneBBB.def, calendar: { ...P.fiveThreeOneBBB.def.calendar, drift: 'anchored' } } as ProgramDef
-  const rt = PO.runtimeOf(reg, def, { id: 'a', anchor: D0, activatedOn: d(-4) })
+  const rt = PO.runtime(reg, def, { id: 'a', anchor: D0, activatedOn: d(-4) })
   const p = ST.prescribe(rt, ST.ledgerOf(ST.activate(rt, {}, F)), def.rotation.days[0] as string, F, D0)
   eq(p.ledger.head.progress.week, 0, 'block week 0 on the anchor day')
   eq(p.ledger.transitions.flatMap((x) => x.emitted), [], 'no week closed')
@@ -368,7 +368,7 @@ t('', 'F10 (semrev-a p9): activated before the anchor, the anchor day closes not
 
 t('', 'F10 (semrev-c p8): anchored projection reconciles before issuing, so weekly projections issue the rotation’s count per week', () => {
   const def = { ...P.linear3x5.def, calendar: { ...P.linear3x5.def.calendar, drift: 'anchored' } } as ProgramDef
-  const rt = PO.runtimeOf(reg, def, { id: 'm-anch', anchor: D0, activatedOn: D0 })
+  const rt = PO.runtime(reg, def, { id: 'm-anch', anchor: D0, activatedOn: D0 })
   let l = ST.ledgerOf(ST.activate(rt, {}, F))
   const per: Record<number, number> = {}
   for (let w = 0; w < 3; w++) {
@@ -733,7 +733,7 @@ t('', 'P5: activation is independent of slot declaration order (a binding argume
   const bench = bind({ ...be, stalls: { k: 'peer', slot: 'squat', field: 'misses', of: 'current' } }, 'chest')
   const misses = (slots: Record<string, unknown>) => {
     const def = { ...base, slots, days: { A: [{ k: 'single', slot: 'squat' }, { k: 'single', slot: 'bench' }], B: [{ k: 'single', slot: 'squat' }] }, exports: {} } as ProgramDef
-    const rt = PO.runtimeOf(rg, def, { id: 'p5', anchor: D0, activatedOn: D0 })
+    const rt = PO.runtime(rg, def, { id: 'p5', anchor: D0, activatedOn: D0 })
     return ST.activate(rt, {}, F).state['bench']!['misses']
   }
   const a = misses({ squat, bench })

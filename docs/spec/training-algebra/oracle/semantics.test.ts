@@ -11,7 +11,7 @@ import type { Term } from './algebra'
 import type { Field, IssuedTarget, SessionValue, Value } from './engine'
 import { ctxOf, evaluate, sameValue } from './evaluate'
 import { sinkField, sinkSlot } from './issue'
-import { runtimeOf } from './ports'
+import { runtime } from './ports'
 import * as P from './programs'
 import { technique, capEffort, range as between, scaleMetric, scaleSets, session, set, setTempo, stripIntensifier, swapExercise, reshape, tempo as tempoE } from './structure'
 import { applyXform } from './xform'
@@ -155,7 +155,7 @@ t('EC-46 EC-55 EC-56', 'fold, sum and count over finite lists; an empty sum is 0
   near(n(ev(sumOver(ladder, (x) => mul(x, num(2))))), 120, 'sum')
   near(n(ev(sumOver(tabulate(range(1), () => num(1)) as never as Expr<never>, () => num(0)))), 0, 'sum of zeros')
 })
-const prog = (def = P.rpMeso.def) => runtimeOf(reg, def, { id: 'x', anchor: D0, activatedOn: D0 })
+const prog = (def = P.rpMeso.def) => runtime(reg, def, { id: 'x', anchor: D0, activatedOn: D0 })
 const keysCx = () => ctxOf(reg, { ports: { keys: (of) => (of === 'slots' ? Object.keys(prog().def.slots) : prog().def.muscles).map((id) => ({ v: 'ref', kind: of === 'slots' ? 'slot' : 'muscle', id })) } })
 t('EC-49 EC-51 EC-54', 'tabulate over the program’s slots (declaration order) is a map; at reads a key, absent on a missing one', () => {
   const m = evaluate(T(tabulate(allSlots, () => sets(1))), keysCx()).value

@@ -77,6 +77,7 @@ import {
 } from './algebra'
 import { METRIC_DECLS, type Enums, type FactId, type Facts, type LoggingType, type MetricId, type Metrics } from './registry'
 import { DEFAULT_LAPSE_DAYS, type AdherenceWeeks, type CalQuery, type Drift, type Frequency, type LocalDay, type Measure, type Period, type Rotation, type Selector } from './time'
+import { canonicalStrip, STRIP_DEFAULT, VOLUME_DEFAULTS } from './options'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // §1 Set and session formers
@@ -339,7 +340,9 @@ export interface EventView {
 const sid = (s: StepRef) => (typeof s === 'string' ? (s as StepId) : s.id)
 const ids = (steps?: StepRef[]) => (steps ? steps.map(sid) : 'working')
 export const ev: EventView = {
-  verdict: (steps, bound = 'floor', success) => E({ k: 'event', q: { q: 'verdict', steps: ids(steps), bound, ...(success && success !== 'allSets' ? { success } : {}) } }),
+  // 'allSets' is KEPT (Y8): on a read it is an override back to the per-set
+  // reading, meaningful wherever a slot declares another rule.
+  verdict: (steps, bound = 'floor', success) => E({ k: 'event', q: { q: 'verdict', steps: ids(steps), bound, ...(success ? { success } : {}) } }),
   metric: (step, m, pick = 'last') => E({ k: 'event', q: { q: 'metric', step: sid(step), metric: m, pick } }),
   total: (step, m) => E({ k: 'event', q: { q: 'metric', step: sid(step), metric: m, pick: 'sum' } }),
   e1rm: (step, formula) => E({ k: 'event', q: { q: 'e1rm', step: sid(step), ...(formula ? { formula } : {}) } }),
@@ -518,6 +521,8 @@ export interface SchemeDef {
   /** As FnDef.defaults (C10): closed literal defaults a binding or example
    *  may rely on; omitted when empty. */
   defaults?: Record<string, Term>
+  /** As FnDef.labels (Y11): display labels for the "(with …)" append. */
+  labels?: Record<string, string>
   /** The facts it may read; the checker refuses any other. */
   facts: string[]
   enums: EnumDecls
@@ -529,7 +534,7 @@ export interface SchemeDef {
 
 export interface Scheme<P, S, D = never> {
   readonly def: SchemeDef
-  bind(args: ArgsWith<P, D, BindCap>, meta: SlotMeta): SlotBinding
+  bind(args: ArgsWith<P, D, BindCap>, meta: SlotMetaSpec): SlotBinding
   readonly __s?: S
 }
 
@@ -541,7 +546,17 @@ export interface SlotMeta {
   /** The slot's verdict success rule (C1): the default for every verdict
    *  read of this slot that does not declare its own. Omitted = allSets. */
   success?: SuccessRule
+  /** U2: per-metric grids for THIS slot, winning over the program's for this
+   *  slot's sink, prose and display unit. Each is a closed literal of the
+   *  metric's dimension; the grid is never converted (U-L2), so a 5 lb slot
+   *  grid on a kg program lands on lb multiples and displays in lb. A slot
+   *  grid spelling the program's own grid is refused (one form per meaning);
+   *  omitted (the default) means the program's grids. */
+  grids?: { load?: Term; distance?: Term }
 }
+/** The embedding's spelling of SlotMeta: grid steps as typed expressions,
+ *  lowered (and dropped when empty) by `bind`. */
+export type SlotMetaSpec = Omit<SlotMeta, 'grids'> & { grids?: { load?: Expr<Q<'mass'>>; distance?: Expr<Q<'length'>> } }
 export interface SlotBinding {
   scheme: DefRef
   args: Record<string, Term>
@@ -559,6 +574,8 @@ export function scheme<P, S, const W extends WritableSpec<S, Writer>, const D ex
   params: TyWs<P>
   /** Closed literal values; a binding or example may then omit the param. */
   defaults?: { [K in D]: DefaultOf<NoInfer<P>, K> }
+  /** Display labels for the defaulted params' "(with …)" append (Y11). */
+  labels?: { [K in D]?: string }
   facts?: FactId[]
   enums?: readonly EnumDecl<string>[]
   state: TyWs<S>
@@ -579,12 +596,14 @@ export function scheme<P, S, const W extends WritableSpec<S, Writer>, const D ex
   const ref: DefRef = { id: spec.id as DefId, version: spec.version }
   const lower = (r: object) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, (v as Expr<unknown, Cap>).term]))
   const defaults = spec.defaults && Object.keys(spec.defaults).length ? { defaults: lower(spec.defaults) } : {}
+  const labels = spec.labels && Object.keys(spec.labels).length ? { labels: { ...(spec.labels as Record<string, string>) } } : {}
   const def: SchemeDef = {
     kind: 'scheme',
     ref,
     says: spec.says,
     params: tys(spec.params),
     ...defaults,
+    ...labels,
     facts: spec.facts ?? [],
     enums: enumDecls(spec.enums),
     state: stateDecls(spec.state, spec.init(c.init), spec.writableBy, spec.nouns ?? {}),
@@ -598,7 +617,14 @@ export function scheme<P, S, const W extends WritableSpec<S, Writer>, const D ex
       expect: lower(ex.expect),
     })),
   }
-  return { def, bind: (args, meta) => ({ scheme: ref, args: lower(args), meta }) }
+  // A slot grid lowers to its term; an empty grids record is dropped, so the
+  // embedding has one spelling of "the program's grids" (omission, U2).
+  const lowerMeta = (m: SlotMetaSpec): SlotMeta => {
+    const { grids, ...rest } = m
+    const entries = Object.entries(grids ?? {}).filter(([, g]) => g !== undefined)
+    return entries.length ? { ...rest, grids: Object.fromEntries(entries.map(([k, g]) => [k, (g as Expr<unknown>).term])) } : rest
+  }
+  return { def, bind: (args, meta) => ({ scheme: ref, args: lower(args), meta: lowerMeta(meta) }) }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -793,18 +819,20 @@ function declaredOptions(spec: {
   stripIntensifierOn?: WeekRole[]
   ties?: 'down' | 'up'
   staleness?: Partial<Record<string, number>>
-}): Pick<ProgramDef, 'e1rm' | 'adherenceWeeks' | 'volumeWeights' | 'stripIntensifierOn' | 'ties' | 'staleness'> {
+}, calendarWeeks?: readonly WeekRole[]): Pick<ProgramDef, 'e1rm' | 'adherenceWeeks' | 'volumeWeights' | 'stripIntensifierOn' | 'ties' | 'staleness'> {
   const out: ReturnType<typeof declaredOptions> = {}
   if (spec.e1rm && !(spec.e1rm.formula === 'epley' && spec.e1rm.maxReps === undefined))
     out.e1rm = { formula: spec.e1rm.formula, ...(spec.e1rm.maxReps !== undefined ? { maxReps: spec.e1rm.maxReps } : {}) }
   if (spec.adherenceWeeks && spec.adherenceWeeks !== 'fromAnchor') out.adherenceWeeks = spec.adherenceWeeks
   const vw = {
-    ...(spec.volumeWeights?.stage !== undefined && spec.volumeWeights.stage !== 0.5 ? { stage: spec.volumeWeights.stage } : {}),
-    ...(spec.volumeWeights?.cluster !== undefined && spec.volumeWeights.cluster !== 1 ? { cluster: spec.volumeWeights.cluster } : {}),
+    ...(spec.volumeWeights?.stage !== undefined && spec.volumeWeights.stage !== VOLUME_DEFAULTS.stage ? { stage: spec.volumeWeights.stage } : {}),
+    ...(spec.volumeWeights?.cluster !== undefined && spec.volumeWeights.cluster !== VOLUME_DEFAULTS.cluster ? { cluster: spec.volumeWeights.cluster } : {}),
   }
   if (Object.keys(vw).length) out.volumeWeights = vw
-  const strip = spec.stripIntensifierOn
-  if (strip && [...strip].sort().join() !== ['deload', 'taper', 'test'].join()) out.stripIntensifierOn = [...strip]
+  // The embedding canonicalizes a role list to THE one spelling (Y4): each
+  // role once, in calendar declaration order; the default set drops.
+  const strip = spec.stripIntensifierOn && calendarWeeks ? canonicalStrip(spec.stripIntensifierOn, calendarWeeks) : spec.stripIntensifierOn && [...new Set(spec.stripIntensifierOn)]
+  if (strip && [...strip].sort().join() !== [...STRIP_DEFAULT].sort().join()) out.stripIntensifierOn = strip as WeekRole[]
   if (spec.ties === 'up') out.ties = 'up'
   if (spec.staleness && Object.keys(spec.staleness).length) out.staleness = Object.fromEntries(Object.entries(spec.staleness).filter(([, v]) => v !== undefined)) as Record<string, number>
   return out
@@ -896,7 +924,7 @@ export function program<P, A = Record<never, never>, const WA extends WritableSp
       frequency: spec.frequency?.({ p: pE, s: sE }) ?? [],
       lapseAfterDays: spec.lapseAfterDays ?? DEFAULT_LAPSE_DAYS,
       hitPolicy: spec.hitPolicy ?? 'allInOrder',
-      ...declaredOptions(spec),
+      ...declaredOptions(spec, spec.calendar.weeks),
       policies: [...rolePolicies, ...allocationPolicy, ...(spec.policies?.({ p: pE, s: sE, pos, cal, fact }) ?? [])],
       aggregate,
       exports: spec.exports ?? {},

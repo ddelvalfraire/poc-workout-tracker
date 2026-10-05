@@ -46,7 +46,7 @@
   "bench": {
    "scheme": {
     "id": "lib/double-progression",
-    "version": 1
+    "version": 2
    },
    "args": {
     "lift": {

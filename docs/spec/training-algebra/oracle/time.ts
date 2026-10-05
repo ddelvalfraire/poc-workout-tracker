@@ -237,18 +237,32 @@ export interface SpecOverrides {
  *  the selectors to track. `reads` is the program's elaborated calendar reads
  *  (checkdefs.ts `calReads`), so a read of an untracked selector cannot be
  *  built. */
-export function calendarSpecOf(p: ProgramDef, reads: readonly Selector[], instance: string, anchor: LocalDay, activatedOn: LocalDay, overrides: SpecOverrides = {}): CalendarSpec {
+export function calendarSpecOf(p: ProgramDef, reads: readonly Selector[], instance: string, anchor: LocalDay, activatedOn: LocalDay, overrides: SpecOverrides = {}): CalendarSpec | import('./engine').IngestRefusal {
   const slots = Object.fromEntries(
     Object.entries(p.slots).map(([k, b]) => [k, { primary: Object.entries(b.meta.muscles).find(([, c]) => c === 1)?.[0] ?? '', tags: b.meta.tags ?? [] }]),
   )
   const frequency = effectiveFrequency(p.frequency, p.rotation)
   const all: Selector[] = [{ s: 'any' }, ...frequency.map((f) => f.of), ...reads]
   const tracked = [...new Map(all.map((x) => [selKey(x), x])).values()]
+  // Bad overrides are TYPED refusals, never thrown (Y9); an override that
+  // spells the program's own value is a second form of the same meaning and
+  // is refused too (Y4's one-form law at the activation boundary).
   const lapse = overrides.lapseAfterDays ?? p.lapseAfterDays
-  if (!(Number.isInteger(lapse) && lapse >= 1)) throw new Error(`calendarSpecOf: lapseAfterDays must be a whole number of days from 1, got ${lapse} (the boundary refuses it)`)
+  if (!(Number.isInteger(lapse) && lapse >= 1)) return { code: 'badOverride', option: 'lapseAfterDays', value: lapse }
+  if (overrides.lapseAfterDays !== undefined && overrides.lapseAfterDays === p.lapseAfterDays) return { code: 'badOverride', option: 'lapseAfterDays', value: `${lapse} (the program's own value: omit the override)` }
   const aw = overrides.adherenceWeeks ?? p.adherenceWeeks ?? 'fromAnchor'
-  if (aw !== 'fromAnchor' && !WEEKDAYS.includes(aw.calendarAligned?.weekStart)) throw new Error(`calendarSpecOf: no weekday ${String(aw.calendarAligned?.weekStart)} (the boundary refuses it)`)
+  if (aw !== 'fromAnchor' && !WEEKDAYS.includes(aw.calendarAligned?.weekStart)) return { code: 'badOverride', option: 'adherenceWeeks.calendarAligned.weekStart', value: String(aw.calendarAligned?.weekStart) }
+  if (overrides.adherenceWeeks !== undefined && JSON.stringify(overrides.adherenceWeeks) === JSON.stringify(p.adherenceWeeks ?? 'fromAnchor'))
+    return { code: 'badOverride', option: 'adherenceWeeks', value: `${JSON.stringify(overrides.adherenceWeeks)} (the program's own value: omit the override)` }
   return { instance, anchor, activatedOn, frequency, slots, lapseAfterDays: lapse, ...(aw === 'fromAnchor' ? {} : { adherenceWeeks: aw }), tracked }
+}
+
+/** `calendarSpecOf`, asserted: for callers that pass no overrides, where a
+ *  refusal is impossible. */
+export function calendarSpec(p: ProgramDef, reads: readonly Selector[], instance: string, anchor: LocalDay, activatedOn: LocalDay): CalendarSpec {
+  const spec = calendarSpecOf(p, reads, instance, anchor, activatedOn)
+  if ('code' in spec) throw new Error(`calendarSpecOf refused with no overrides: ${JSON.stringify(spec)}`)
+  return spec
 }
 
 /** A session that closed with at least one logged set. Only sessions

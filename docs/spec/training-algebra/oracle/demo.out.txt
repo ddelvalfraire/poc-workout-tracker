@@ -21,34 +21,34 @@
   OK      scheme lib/531@1
   OK      scheme lib/bbb@1
   OK      program prog/gzclp-t1@1
-  OK      scheme lib/gzclp-t1@1
+  OK      scheme lib/gzclp-t1@2
   OK      program prog/rp-upper-meso@1
   OK      scheme lib/rp-slot@1
   OK      program prog/opt-stabilization@1
   OK      scheme lib/stab-ladder@1
   OK      program prog/opt-strength-endurance@1
-  OK      scheme lib/double-progression@1
+  OK      scheme lib/double-progression@2
   OK      scheme lib/stab-ladder@1
   OK      program prog/opt-loaded@1
-  OK      scheme lib/double-progression@1
+  OK      scheme lib/double-progression@2
   OK      program prog/opt-power@1
-  OK      scheme lib/double-progression@1
+  OK      scheme lib/double-progression@2
   OK      scheme lib/fixed-work@1
   OK      program prog/upper-hypertrophy-dc@1
   OK      scheme lib/rest-pause-dc@1
   OK      scheme lib/cluster-strength@1
   OK      program prog/legs-3x@1
   OK      scheme lib/linear-gated@1
-  OK      scheme lib/double-progression@1
+  OK      scheme lib/double-progression@2
   OK      program prog/c25k@1
   OK      scheme lib/c25k@1
   OK      program prog/hr-tempo-block@1
-  OK      scheme lib/hr-tempo@1
+  OK      scheme lib/hr-tempo@2
   OK      scheme lib/easy-run@1
   OK      program prog/achilles-isometric@1
   OK      scheme lib/iso-hold@1
   OK      program prog/achilles-loading@1
-  OK      scheme lib/pain-gated-loading@1
+  OK      scheme lib/pain-gated-loading@2
   OK      macro macro/opt-16wk
   OK      macro macro/achilles-return
 

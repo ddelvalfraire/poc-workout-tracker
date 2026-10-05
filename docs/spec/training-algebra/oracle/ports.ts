@@ -11,11 +11,12 @@
 import type { Term } from './algebra'
 import { digest } from './canonical'
 import { enumsWith, keyOf, type Registry } from './checker'
-import type { Absence, FactReading, FactSource, Head, IssuedStep, Trace, Value } from './engine'
+import type { Absence, FactReading, FactSource, Head, IngestRefusal, IssuedStep, Trace, Value } from './engine'
 import { ctxOf, evaluate, nodesOf, none, qv, type AggRead, type Ctx, type Ports } from './evaluate'
 import type { ProgramDef, SchemeDef, Use, WeekRole } from './structure'
 import { calendarSpecOf, dayNum, matches, selKey, type CalQuery, type CalendarSpec, type CalendarState, type LocalDay, type Rotation, type Selector, type SpecOverrides } from './time'
 import { issueSlot, firedPolicies } from './issue'
+import { VOLUME_DEFAULTS } from './options'
 import { DIMS, unitFor, type Unit } from './units'
 import { isJudged } from './xform'
 
@@ -34,15 +35,29 @@ export interface Runtime {
   reg: Registry
   def: ProgramDef
   spec: CalendarSpec
+  /** The activation overrides the spec was built with (Y9): what `activate`
+   *  records on the head's instance, so a replay rebuilt from that record
+   *  sees the same spec. Absent when none were given. */
+  overrides?: SpecOverrides
   /** A macro phase's transform, applied after every policy (prescribe's contract). */
   phaseTransform: Use | null
   phase: string | null
 }
-export function runtimeOf(reg: Registry, def: ProgramDef, inst: { id: string; anchor: LocalDay; activatedOn: LocalDay; overrides?: SpecOverrides }, phase: { label: string; transform: Use | null } | null = null): Runtime {
+export function runtimeOf(reg: Registry, def: ProgramDef, inst: { id: string; anchor: LocalDay; activatedOn: LocalDay; overrides?: SpecOverrides }, phase: { label: string; transform: Use | null } | null = null): Runtime | IngestRefusal {
   // The overrides argument is omitted when none were given, so a recorded
-  // default call keeps its pre-round shape.
+  // default call keeps its pre-round shape. A bad override comes back as a
+  // typed refusal, never a thrown Error (Y9).
   const spec = inst.overrides ? calendarSpecOf(def, calReads(def, reg), inst.id, inst.anchor, inst.activatedOn, inst.overrides) : calendarSpecOf(def, calReads(def, reg), inst.id, inst.anchor, inst.activatedOn)
-  return { reg, def, spec, phaseTransform: phase?.transform ?? null, phase: phase?.label ?? null }
+  if ('code' in spec) return spec
+  return { reg, def, spec, ...(inst.overrides ? { overrides: inst.overrides } : {}), phaseTransform: phase?.transform ?? null, phase: phase?.label ?? null }
+}
+
+/** `runtimeOf`, asserted: for callers that pass no overrides (a refusal is
+ *  then impossible) and for tests. */
+export function runtime(reg: Registry, def: ProgramDef, inst: { id: string; anchor: LocalDay; activatedOn: LocalDay; overrides?: SpecOverrides }, phase: { label: string; transform: Use | null } | null = null): Runtime {
+  const r = runtimeOf(reg, def, inst, phase)
+  if ('code' in r) throw new Error(`runtimeOf refused: ${JSON.stringify(r)}`)
+  return r
 }
 
 /** FNV-1a over the canonical JSON (canonical.ts): the stamp's program hash
@@ -219,21 +234,58 @@ const keysPort = (rt: Runtime): Ports['keys'] => (of) =>
  *  position (program params and peers' LIVE state: BBB's TM). */
 export function slotParams(rt: Runtime, head: Head, slot: string, inp: Inputs): Record<string, Value> {
   const b = head.bindings[slot]!
-  const cx = ctxOf(rt.reg, { params: head.params, ports: { peer: peerPort(head, inp.prevPhase) } })
+  // Binding arguments evaluate under the program's option seams too (Y5): a
+  // rounded argument in a ties-up program lands on the same step the plan does.
+  const cx = ctxOf(rt.reg, { params: head.params, ports: { peer: peerPort(head, inp.prevPhase) }, ...optionSeams(rt) })
   const out = Object.fromEntries(Object.entries(b.args).map(([k, t]) => [k, evaluate(t, cx).value]))
   // A defaulted scheme parameter the binding omits takes its declared closed
   // value (C10), evaluated with no ports: it reads nothing.
-  for (const [k, d] of Object.entries(schemeOf(rt, head, slot).defaults ?? {})) if (!(k in out)) out[k] = evaluate(d, ctxOf(rt.reg)).value
+  for (const [k, d] of Object.entries(schemeOf(rt, head, slot).defaults ?? {})) if (!(k in out)) out[k] = evaluate(d, ctxOf(rt.reg, optionSeams(rt))).value
   return out
 }
 
 /** The plan / handler context of one slot. */
 /** The unit each gridded metric displays in: its grid literal's unit. Plans,
  *  handlers and resolutions read quantities in it (F11). */
+/** The program-level option seams every evaluation context carries (Y5):
+ *  display units, the declared tie direction and the declared estimator. */
+export function optionSeams(rt: Pick<Runtime, 'def'>): Pick<Ctx, 'display' | 'ties' | 'e1rm'> {
+  return { display: displayOf(rt), ...(rt.def.ties === 'up' ? { ties: 'up' as const } : {}), ...(rt.def.e1rm ? { e1rm: rt.def.e1rm } : {}) }
+}
+
 export function displayOf(rt: Pick<Runtime, 'def'>): Partial<Record<string, Unit>> {
   const out: Partial<Record<string, Unit>> = {}
   for (const [m, t] of Object.entries(rt.def.grids)) if (t && t.k === 'lit' && t.lit.k === 'q') out[m] = t.lit.unit
   return out
+}
+
+/** U2: a slot's declared grids (meta.grids) as canonical steps and display
+ *  units; null when the slot declares none. The grid itself is NEVER
+ *  converted (U-L2): the step is the declared quantity's canonical value and
+ *  the display unit is the declared literal's unit, so a 5 lb slot grid
+ *  quantizes to multiples of 5 lb and shows lb. */
+export function slotGridsOf(rt: Pick<Runtime, 'def' | 'reg'>, slot: string): { grids: { load?: number; distance?: number }; display: Partial<Record<string, Unit>> } | null {
+  const mg = rt.def.slots[slot]?.meta.grids
+  if (!mg) return null
+  const grids: { load?: number; distance?: number } = {}
+  const display: Partial<Record<string, Unit>> = {}
+  for (const m of ['load', 'distance'] as const) {
+    const t = mg[m]
+    if (!t) continue
+    const v = evaluate(t, ctxOf(rt.reg)).value
+    if (v.v === 'q') grids[m] = v.n
+    if (t.k === 'lit' && t.lit.k === 'q') display[m] = t.lit.unit
+  }
+  return { grids, display }
+}
+
+/** The option seams of one slot's evaluation contexts (plans and handlers):
+ *  the program's, with the slot's grid display units winning (U2). Values
+ *  stay canonical; only the unit a read shows in moves. */
+export function slotOptionSeams(rt: Pick<Runtime, 'def' | 'reg'>, slot: string): Pick<Ctx, 'display' | 'ties' | 'e1rm'> {
+  const base = optionSeams(rt)
+  const sg = slotGridsOf(rt, slot)
+  return sg ? { ...base, display: { ...base.display, ...sg.display } } : base
 }
 
 export function slotCtx(rt: Runtime, head: Head, slot: string, inp: Inputs, params = slotParams(rt, head, slot, inp)): Ctx {
@@ -252,7 +304,7 @@ export function slotCtx(rt: Runtime, head: Head, slot: string, inp: Inputs, para
     cal: calPort(rt.spec, head.calendar, inp.today, inp.earlierToday, inp.reads),
     keys: keysPort(rt),
   }
-  return ctxOf(rt.reg, { params, ports, enums: enumsWith(s.enums), display: displayOf(rt), ...(rt.def.ties === 'up' ? { ties: 'up' as const } : {}) })
+  return ctxOf(rt.reg, { params, ports, enums: enumsWith(s.enums), ...slotOptionSeams(rt, slot) })
 }
 
 /** The program-scope context: policies, frequency gaps and the aggregate
@@ -267,7 +319,7 @@ export function programCtx(rt: Runtime, head: Head, inp: Inputs): Ctx {
     keys: keysPort(rt),
     agg: aggPort(rt, head, inp),
   }
-  return ctxOf(rt.reg, { params: head.params, ports, enums: enumsWith(rt.def.enums), display: displayOf(rt), ...(rt.def.ties === 'up' ? { ties: 'up' as const } : {}) })
+  return ctxOf(rt.reg, { params: head.params, ports, enums: enumsWith(rt.def.enums), ...optionSeams(rt) })
 }
 
 /** Evaluate a slot's plan under the head: the session it would issue now. */
@@ -288,8 +340,8 @@ export interface VolumeWeights {
   cluster?: number
 }
 export function plannedSets(steps: IssuedStep[], intensifierStages: number, weights: VolumeWeights = {}): number {
-  const cluster = weights.cluster ?? 1
-  const stage = weights.stage ?? 0.5
+  const cluster = weights.cluster ?? VOLUME_DEFAULTS.cluster
+  const stage = weights.stage ?? VOLUME_DEFAULTS.stage
   return steps.reduce((a, st) => a + plannedTargets(st).filter(isJudged).reduce((b, t) => b + (t.cluster ? cluster : 1), 0), 0) + stage * intensifierStages
 }
 /** The targets a step plans: its count, a range's floor, an until/while

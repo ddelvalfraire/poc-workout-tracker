@@ -100,7 +100,9 @@ export interface Run {
   ledger: Ledger
 }
 export function start(def: ProgramDef, params: Record<string, Value> = {}, facts: FactSource = noFacts, id: string = def.ref.id, on: LocalDay = D0, r: Registry = reg): Run {
-  const rt = runtimeOf(r, def, { id, anchor: on, activatedOn: on })
+  const rt0 = runtimeOf(r, def, { id, anchor: on, activatedOn: on })
+  if ('code' in rt0) throw new Error(`start: refused ${JSON.stringify(rt0)}`)
+  const rt = rt0
   return { rt, ledger: ledgerOf(activate(rt, params, facts)) }
 }
 export function issue(run: Run, today: LocalDay, facts: FactSource = noFacts, dayName?: string): { run: Run; issued: IssuedSession } {

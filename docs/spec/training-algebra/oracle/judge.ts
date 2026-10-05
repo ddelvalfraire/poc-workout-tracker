@@ -25,6 +25,7 @@
  * is read from the session's fact snapshot when the set did not log it.
  */
 import type { E1rmFormula, SuccessRule } from './algebra'
+import { DEFAULT_E1RM_FORMULA, E1RM_FORMULAS } from './options'
 import type { MetricDecl } from './registry'
 import type { FactReading, IssuedBound, IssuedSlot, IssuedStep, Logged, PerformedSet, Value } from './engine'
 import { assistedLoad, cmpNum, edgeOf, none, performedRead, qv, type EventRead, type Ports } from './evaluate'
@@ -86,23 +87,33 @@ interface Tally {
 const repsFloorOf = (b: IssuedBound, edge: 'floor' | 'top'): number | null =>
   b.b === 'exact' || b.b === 'atLeast' ? b.v : b.b === 'range' ? (edge === 'floor' ? b.min : b.max) : null
 
-export function verdictOf(src: EventSource, steps: string[] | 'working', edge: 'floor' | 'top', success?: SuccessRule): Verdict {
+export function verdictOf(src: EventSource, steps: string[] | 'working', edge: 'floor' | 'top', success?: SuccessRule | 'allSets'): Verdict {
   const all: Tally = { missed: false, unknown: false, judged: 0 }
   for (const slot of src.slots) {
-    const rule = success ?? src.success?.[slot.slot]
+    // The read's rule wins in BOTH directions (Y8): an explicit 'allSets'
+    // overrides a slot declaration back to the per-set reading.
+    const declared = success ?? src.success?.[slot.slot]
+    const rule = declared === 'allSets' ? undefined : declared
     const repsAgg = rule === 'totalReps'
     const atLeastSets = typeof rule === 'object' ? rule.atLeastSets : null
-    // totalReps (C1): the summed logged reps of the slot's judged sets
-    // against the summed reps floor, decidable early in both directions: the
-    // logged sum alone can already hit, and a miss needs every expected set
-    // logged (an unlogged set could still add reps).
+    // totalReps (Y1, matching its documented meaning): the floor is the
+    // summed per-set reps floors of the EXPECTED judged sets (a range count
+    // at its min), and the credit is the summed logged reps of EVERY logged
+    // set of the participating steps — a make-up set beyond the expected
+    // count still pays in (GZCLP's published rule pools the slot). hit as
+    // soon as credit ≥ floor; missed only with every expected set logged and
+    // the credit short (an unlogged set could still add reps); unknown
+    // otherwise.
     let repsRequired = 0
     let repsLogged = 0
     let repsBars = 0
     let repsOpen = false
     let repsAllLogged = true
-    // atLeastSets n (C1): per set, every bar must hit; the slot hits when n
-    // sets did, misses when too few can still hit, and is unknown between.
+    // atLeastSets n (C1), capped at the judged sets actually issued (Y2):
+    // per set, every bar must hit; the slot hits when min(n, issued) sets
+    // did, misses when too few can still hit, and is unknown between — so a
+    // deload-shrunk session an athlete fully hit still hits, and silence is
+    // never a miss.
     let setsHit = 0
     let setsMissed = 0
     let setsUnknown = 0
@@ -111,6 +122,7 @@ export function verdictOf(src: EventSource, steps: string[] | 'working', edge: '
       if (steps !== 'working' && !steps.includes(st.id)) continue
       const logged = loggedOf(src, slot.slot, st)
       const expected = st.count.k === 'n' ? st.count.n : st.count.k === 'range' ? st.count.min : logged.length
+      let stepAggregates = false
       for (let i = 0; i < expected; i++) {
         const target = st.sets[i]
         if (!target || (steps === 'working' && !isJudged(target))) continue
@@ -120,11 +132,10 @@ export function verdictOf(src: EventSource, steps: string[] | 'working', edge: '
           if (!fd || m === 'effort') continue
           if (fd.k === 'silent' || (fd.k === 'fixed' && fd.v.b === 'open')) continue
           if (repsAgg && m === 'reps' && fd.k === 'fixed' && repsFloorOf(fd.v, edge) !== null) {
+            stepAggregates = true
             repsBars++
             repsRequired += repsFloorOf(fd.v, edge)!
-            const r = set?.values['reps']
-            if (typeof r === 'number') repsLogged += r
-            else repsAllLogged = false
+            if (typeof set?.values['reps'] !== 'number') repsAllLogged = false
             // Only the floor side aggregates; an atMost reps ceiling has no
             // floor and stays a per-set bar below.
             continue
@@ -158,6 +169,10 @@ export function verdictOf(src: EventSource, steps: string[] | 'working', edge: '
         all.missed ||= one.missed
         all.unknown ||= one.unknown
       }
+      // The credit side (Y1): every logged set of a step that contributed a
+      // reps floor pays its logged reps into the pool, the sets beyond the
+      // expected count included.
+      if (stepAggregates) for (const s of logged) if (typeof s.values['reps'] === 'number') repsLogged += s.values['reps']
     }
     if (repsAgg && repsBars > 0) {
       all.judged++
@@ -167,8 +182,9 @@ export function verdictOf(src: EventSource, steps: string[] | 'working', edge: '
     }
     if (atLeastSets !== null && setsJudged > 0) {
       all.judged++
-      if (setsHit >= atLeastSets) void 0
-      else if (setsHit + setsUnknown < atLeastSets) all.missed = true
+      const needed = Math.min(atLeastSets, setsJudged)
+      if (setsHit >= needed) void 0
+      else if (setsHit + setsUnknown < needed) all.missed = true
       else all.unknown = true
     }
   }
@@ -190,17 +206,6 @@ function stepOf(src: EventSource, id: string): { slot: IssuedSlot; st: IssuedSte
   return null
 }
 
-/** The estimator family (C2), each on effective reps r = logged reps plus
- *  logged reps in reserve (X6: one RIR rule across every formula) and
- *  effective load w. Operation order is pinned per formula (P4). A formula's
- *  own domain edge: Brzycki estimates nothing at 37 or more effective reps. */
-const FORMULAS: Record<E1rmFormula, { domainMax: number | null; of: (w: number, r: number) => number }> = {
-  epley: { domainMax: null, of: (w, r) => w * (1 + r / 30) },
-  brzycki: { domainMax: 36, of: (w, r) => (w * 36) / (37 - r) },
-  lombardi: { domainMax: null, of: (w, r) => w * Math.pow(r, 0.1) },
-  mayhew: { domainMax: null, of: (w, r) => (100 * w) / (52.2 + 41.9 * Math.exp(-0.055 * r)) },
-}
-
 /** The declared estimator over the best set, on EFFECTIVE load: an added
  *  load counts with bodyweight, an assisted one against it (bodyweight from
  *  the snapshot). Where the logged load IS the lifted load (weight_reps), a
@@ -212,19 +217,25 @@ const FORMULAS: Record<E1rmFormula, { domainMax: number | null; of: (w: number, 
  *  seen (asReps), so the Epley estimate and lib/load-for's inverse are ONE
  *  rule and a round trip agrees (X6); an unlogged effort adds nothing.
  *  The formula is the read's override, else the program's declaration, else
- *  Epley; a qualifying set whose effective reps lie outside the formula's
- *  domain, or above the declared maxReps, makes the read absent with
- *  outsideFormulaDomain, never a silently skipped set (C2). */
+ *  Epley; the declared maxReps stays program-level and caps every formula,
+ *  a read-level override included.
+ *  Out-of-domain sets are SKIPPED, not a veto (Y6): the estimate comes from
+ *  the qualifying sets, so one high-rep burnout beside a heavy triple no
+ *  longer silences the read. Only when NO set qualifies and at least one was
+ *  skipped for its reps is the read absent with outsideFormulaDomain, naming
+ *  the best offender (the skipped set with the fewest effective reps) and,
+ *  when the program's maxReps was the binding limit, that cap. */
 function e1rm(src: EventSource, id: string, formula?: E1rmFormula): Value {
   const hit = stepOf(src, id)
   if (!hit) return none({ k: 'notPerformed', step: id })
-  const name = formula ?? src.e1rm?.formula ?? 'epley'
-  const f = FORMULAS[name]
+  const name = formula ?? src.e1rm?.formula ?? DEFAULT_E1RM_FORMULA
+  const f = E1RM_FORMULAS[name]
   const maxReps = src.e1rm?.maxReps ?? null
   const logging = loggingOf(hit.slot)
   const bw = factNumber(src, 'bodyweight')
   const loadIsLifted = logging !== 'weighted_bodyweight' && logging !== 'assisted_bodyweight' && logging !== 'bodyweight_reps'
   let best: number | null = null
+  let offender: { reps: number; capped: boolean } | null = null
   for (const s of loggedOf(src, hit.slot.slot, hit.st)) {
     const r = s.values['reps']
     if (r === undefined || r <= 0) continue
@@ -233,11 +244,18 @@ function e1rm(src: EventSource, id: string, formula?: E1rmFormula): Value {
     if ((logging === 'weighted_bodyweight' || logging === 'assisted_bodyweight' || logging === 'bodyweight_reps') && bw === undefined) return none({ k: 'factUnknown', fact: 'bodyweight', key: null })
     const w = logging === 'weighted_bodyweight' ? bw! + l : logging === 'assisted_bodyweight' ? bw! - l : logging === 'bodyweight_reps' ? bw! : l
     const reff = r + (s.values['effort'] ?? 0)
-    if ((f.domainMax !== null && reff > f.domainMax) || (maxReps !== null && reff > maxReps)) return none({ k: 'outsideFormulaDomain', formula: name, reps: reff })
+    if ((f.domainMax !== null && reff > f.domainMax) || (maxReps !== null && reff > maxReps)) {
+      // The binding limit is whichever bound is lower where both apply.
+      const capped = maxReps !== null && (f.domainMax === null || maxReps <= f.domainMax)
+      if (!offender || reff < offender.reps) offender = { reps: reff, capped }
+      continue
+    }
     const e = f.of(w, reff)
     if (best === null || e > best) best = e
   }
-  return best === null ? none({ k: 'notPerformed', step: id }) : qv(best, DIMS.mass, 'kg')
+  if (best !== null) return qv(best, DIMS.mass, 'kg')
+  if (offender) return none({ k: 'outsideFormulaDomain', formula: name, reps: offender.reps, ...(offender.capped && maxReps !== null ? { cap: maxReps } : {}) })
+  return none({ k: 'notPerformed', step: id })
 }
 
 export function eventPort(src: EventSource): Ports['event'] {

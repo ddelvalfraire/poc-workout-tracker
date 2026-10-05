@@ -19,7 +19,8 @@
  *
  * Absence is flattened at runtime (engine.ts Value): `some x` is x.
  */
-import type { BoundIR, DefRef, FnDef, StepIR, Term, WeeklyBasis, WeeklyRoles } from './algebra'
+import type { BoundIR, DefRef, E1rmFormula, FnDef, StepIR, Term, WeeklyBasis, WeeklyRoles } from './algebra'
+import { E1RM_FORMULAS } from './options'
 import { canonicalJson } from './canonical'
 import { enumsWith, keyOf, type Registry } from './checker'
 import type { Absence, Field, Frame, IssuedBound, IssuedStep, IssuedTarget, PerformedSet, SessionValue, Trace, Value } from './engine'
@@ -125,6 +126,10 @@ export interface Ctx {
   /** The program's declared grid-tie direction (C6): `round nearest` follows
    *  it; present only when 'up'. */
   ties?: 'up'
+  /** The program's declared estimator (C2), present only when declared: the
+   *  seam `lib/load-for` reads so seeding and TM math use the DECLARED
+   *  inverse (Y7), the same declaration the e1RM event read consumes. */
+  e1rm?: { formula: E1rmFormula; maxReps?: number }
   /** The enclosing session's exercise logging type, when known. */
   logging?: LoggingType | null
   /** Issue-time capture: told every non-live read with its closed key. */
@@ -614,11 +619,36 @@ export function evaluate(t: Term, cx: Ctx): Trace {
       const f = fnOf(cx, t.def)
       const seq = cx.reg.seq.get(keyOf(t.def)) ?? cx.reg.seq.size
       if (cx.seq !== undefined && seq >= cx.seq) throw new Error(`evaluate: ${keyOf(t.def)} is not published before its caller (L1: no recursion)`)
-      const callee: Ctx = { reg: cx.reg, params: {}, ports: {}, vars: new Map(), enums: enumsWith(f.enums), seq, ...(cx.extraFns ? { extraFns: cx.extraFns } : {}) }
+      // The callee gets no ports and no variables, but the program-level
+      // option seams (display, the tie direction, the declared estimator)
+      // thread through (Y5): a `round nearest` inside a named definition
+      // follows the program's declared direction exactly as one written
+      // inline does.
+      const callee: Ctx = {
+        reg: cx.reg,
+        params: {},
+        ports: {},
+        vars: new Map(),
+        enums: enumsWith(f.enums),
+        seq,
+        ...(cx.extraFns ? { extraFns: cx.extraFns } : {}),
+        ...(cx.ties ? { ties: cx.ties } : {}),
+        ...(cx.display ? { display: cx.display } : {}),
+        ...(cx.e1rm ? { e1rm: cx.e1rm } : {}),
+      }
       const params = Object.fromEntries(Object.entries(t.args).map(([k, x]) => [k, sub(x)]))
       // A defaulted parameter the call omits takes its declared closed value,
       // evaluated in the callee's own context (it reads nothing, C10).
       for (const [k, d] of Object.entries(f.defaults ?? {})) if (!(k in params)) params[k] = evaluate(d, callee).value
+      // Y7: lib/load-for is the engine's inverse-estimator seam. Under a
+      // program that declares a non-Epley formula, the stored Epley body
+      // would disagree with the declared e1RM read, so the engine computes
+      // the DECLARED inverse here (X6's round-trip law for every formula);
+      // without a declaration the published body runs unchanged.
+      if (t.def.id === 'lib/load-for' && cx.e1rm && cx.e1rm.formula !== 'epley') {
+        const inv = loadForInverse(cx.e1rm.formula, params)
+        return out(inv, { def: t.def, note: `the ${cx.e1rm.formula} inverse (the program's declared estimator)` })
+      }
       const body = evaluate(f.body, { ...callee, params })
       kids.push(body)
       return out(body.value, { def: t.def })
@@ -793,6 +823,21 @@ export function evaluate(t: Term, cx: Ctx): Trace {
     const sv: SessionValue = { exercise, steps, intensifier }
     return out({ v: 'session', s: sv })
   }
+}
+
+/** The declared inverse (Y7): load = inverse(e1RM, effective reps), with
+ *  effective reps = reps + RIR (X6, matching lib/load-for's own shape).
+ *  Outside the formula's domain the result is typed absence, exactly as the
+ *  forward read is. */
+function loadForInverse(formula: E1rmFormula, params: Record<string, Value>): Value {
+  const e = params['e1rm']
+  const reps = params['reps']
+  const rir = params['rir']
+  if (!e || e.v !== 'q' || !reps || reps.v !== 'q' || !rir || rir.v !== 'q') throw new Error('evaluate: lib/load-for needs e1rm, reps and rir quantities')
+  const r = reps.n + rir.n
+  const f = E1RM_FORMULAS[formula]
+  if (f.domainMax !== null && r > f.domainMax) return none({ k: 'outsideFormulaDomain', formula, reps: r })
+  return qv(f.inverse(e.n, r), DIMS.mass, e.unit)
 }
 
 /** The sets a step expects when it goes as planned: its count, a range's

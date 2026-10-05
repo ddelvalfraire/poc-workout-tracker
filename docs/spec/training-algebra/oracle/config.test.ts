@@ -127,7 +127,7 @@ t('', 'C1 prose: the verdict read and its match arms state the declared rule; th
   eq(DS.describe(aggT({}), cx), 'How the working sets went.', 'default, unchanged')
   eq(DS.describe(aggT({ success: 'totalReps' }), cx), 'How the working sets went (counting total reps across all sets).', 'the read states totalReps')
   eq(DS.describe(aggT({ success: { atLeastSets: 2 } }), cx), 'How the working sets went (at least 2 sets must fully hit).', 'the read states atLeastSets')
-  const gz = reg.schemes.get('lib/gzclp-t1@1')!
+  const gz = reg.schemes.get('lib/gzclp-t1@2')!
   const handler = DS.describe(gz.on.session!, DS.cxOf(reg, { lib: true, nouns: { stage: 'stage', load: 'working weight' } }))
   assert(handler.includes('totalled their target reps'), `GZCLP’s arms state the total-reps rule: ${handler}`)
   const lines = DD.describeProgram(cfgTwoOfThree.def, DS.cxOf(reg))
@@ -159,9 +159,9 @@ t('', 'C2 out-of-domain reps are a typed absence (outsideFormulaDomain), for the
   const x = TK.issue(run, D0)
   const logged = TK.logWith(x.issued, (_s, _st, _i, tg) => ({ ...EV.asPrescribedSet(tg), values: { reps: 40, load: 60 } }))
   const srcOf = (decl: NonNullable<JU.EventSource['e1rm']>): JU.EventSource => ({ reg, slots: x.issued.slots.filter((s) => s.slot === 'squat'), performed: logged, facts: [], groupScores: {}, week: 0, primary: () => 'quads', e1rm: decl })
-  eq(JU.eventPort(srcOf({ formula: 'brzycki' }))({ q: 'e1rm', step: 'work' } as EV.EventRead), { v: 'none', cause: { k: 'outsideFormulaDomain', formula: 'brzycki', reps: 40 } }, 'Brzycki stops at 36 effective reps')
-  eq(JU.eventPort(srcOf({ formula: 'epley', maxReps: 12 }))({ q: 'e1rm', step: 'work' } as EV.EventRead), { v: 'none', cause: { k: 'outsideFormulaDomain', formula: 'epley', reps: 40 } }, 'a declared maxReps caps every formula')
-  eq(DR.absenceText({ k: 'outsideFormulaDomain', formula: 'brzycki', reps: 40 }, reg), '40 effective reps is more than the Brzycki estimate covers', 'the absence says why')
+  eq(JU.eventPort(srcOf({ formula: 'brzycki' }))({ q: 'e1rm', step: 'work' } as EV.EventRead), { v: 'none', cause: { k: 'outsideFormulaDomain', formula: 'brzycki', reps: 40 } }, 'Brzycki stops at 36 effective reps (no set qualifies here)')
+  eq(JU.eventPort(srcOf({ formula: 'epley', maxReps: 12 }))({ q: 'e1rm', step: 'work' } as EV.EventRead), { v: 'none', cause: { k: 'outsideFormulaDomain', formula: 'epley', reps: 40, cap: 12 } }, 'a declared maxReps caps every formula, and the absence names the cap')
+  eq(DR.absenceText({ k: 'outsideFormulaDomain', formula: 'brzycki', reps: 40 }, reg), 'no set qualified: 40 effective reps is more than the Brzycki estimate covers', 'the absence says why')
 })
 
 t('', 'C2 negatives and prose: unknown formulas are refused at the read and the declaration, maxReps 0 is refused, and the program line names the formula', () => {
@@ -179,7 +179,7 @@ t('', 'C2 negatives and prose: unknown formulas are refused at the read and the 
 t('', 'C3 (fail-first): calendarAligned weeks open on the declared weekday, not on the anchor; the first partial week before activation opens nothing', () => {
   // D0+2 is Wednesday 7 October; aligned weeks run Monday to Sunday.
   const wed = TK.day('2026-10-07')
-  const rt = PO.runtimeOf(reg, P.linear3x5.def, { id: 'aligned', anchor: wed, activatedOn: wed, overrides: { adherenceWeeks: { calendarAligned: { weekStart: 'Monday' } } } })
+  const rt = PO.runtime(reg, P.linear3x5.def, { id: 'aligned', anchor: wed, activatedOn: wed, overrides: { adherenceWeeks: { calendarAligned: { weekStart: 'Monday' } } } })
   eq(rt.spec.adherenceWeeks, { calendarAligned: { weekStart: 'Monday' } }, 'the override reaches the spec')
   const head = ST.activate(rt, {}, TK.factsOf({}))
   eq(head.calendar.expectations, [], 'no window opens mid-week: the lead-in days are uncounted')
@@ -195,7 +195,7 @@ t('', 'C3 (fail-first): calendarAligned weeks open on the declared weekday, not 
 
 t('', 'C3 the program-level declaration, its prose and its negative', () => {
   const def = { ...P.linear3x5.def, adherenceWeeks: { calendarAligned: { weekStart: 'Monday' as const } } }
-  const spec = TI.calendarSpecOf(def, [], 'x', D0, D0)
+  const spec = TI.calendarSpec(def, [], 'x', D0, D0)
   eq(spec.adherenceWeeks, { calendarAligned: { weekStart: 'Monday' } }, 'declared on the program')
   const lines = DD.describeProgram(def, DS.cxOf(reg))
   assert(lines.some((l) => l.includes('in each calendar week (Monday to Sunday)')), `the frequency prose is aligned: ${lines.find((l) => l.startsWith('  Attendance'))}`)
@@ -281,7 +281,7 @@ t('', 'C6 a ties-up program issues the upper step, stamps the declaration, and `
 // ── C7: the lapse threshold per instance ────────────────────────────────────
 
 t('', 'C7 (fail-first): an instance-level lapseAfterDays override lapses the instance on the overridden clock, and the spec carries the active value', () => {
-  const rt = PO.runtimeOf(reg, ER_C25K(), { id: 'lapse5', anchor: D0, activatedOn: D0, overrides: { lapseAfterDays: 5 } })
+  const rt = PO.runtime(reg, ER_C25K(), { id: 'lapse5', anchor: D0, activatedOn: D0, overrides: { lapseAfterDays: 5 } })
   eq(rt.spec.lapseAfterDays, 5, 'the active value')
   let head = ST.activate(rt, {}, TK.factsOf({}))
   for (const e of TI.reconcile(rt.spec, head.calendar, TK.day('2026-10-12'))) {
@@ -290,19 +290,14 @@ t('', 'C7 (fail-first): an instance-level lapseAfterDays override lapses the ins
     head = r.head
   }
   eq(head.calendar.status, 'lapsed', '7 untrained days beat the 5-day override')
-  const base = PO.runtimeOf(reg, ER_C25K(), { id: 'lapse21', anchor: D0, activatedOn: D0 })
+  const base = PO.runtime(reg, ER_C25K(), { id: 'lapse21', anchor: D0, activatedOn: D0 })
   eq(base.spec.lapseAfterDays, 21, 'no override keeps the program’s declaration')
   assert(DD.describeProgram(ER_C25K(), DS.cxOf(reg)).some((l) => l.includes("If you don't train for 21 days")), 'the program prose states its declared value; the spec carries an instance’s active one')
 })
 
-t('', 'C7 negative: a lapse override below one day is refused at the boundary', () => {
-  let threw = ''
-  try {
-    TI.calendarSpecOf(ER_C25K(), [], 'x', D0, D0, { lapseAfterDays: 0 })
-  } catch (e) {
-    threw = (e as Error).message
-  }
-  assert(threw.includes('lapseAfterDays'), `refused: ${threw}`)
+t('', 'C7 negative: a lapse override below one day is a TYPED refusal at the boundary (Y9), never a thrown Error', () => {
+  const r = TI.calendarSpecOf(ER_C25K(), [], 'x', D0, D0, { lapseAfterDays: 0 })
+  eq('code' in r ? { code: r.code, option: (r as { option?: string }).option } : r, { code: 'badOverride', option: 'lapseAfterDays' }, 'refused with its cause')
 })
 
 // ── C8: fact staleness per program ──────────────────────────────────────────
@@ -376,12 +371,12 @@ t('', 'C10 (fail-first): a binding may rebase doubleProg’s defaulted 8–12 ra
   eq(f, { k: 'fixed', v: { b: 'range', min: 5, max: 8 } }, 'the override reaches the issued target')
   const base = TK.issue(TK.start(P.optLoaded.def, { benchStart: { v: 'q', n: 60, dim: { mass: 1 }, unit: 'kg' } }, TK.corpusFacts()), D0)
   eq(TK.fieldOf(base.issued, 'bench', 'reps'), { k: 'fixed', v: { b: 'range', min: 8, max: 12 } }, 'the corpus binding, which omits lo and hi, is unchanged')
-  eq(reg.schemes.get('lib/double-progression@1')!.defaults!['lo'], { k: 'lit', lit: { k: 'q', v: 8, unit: 'rep' } }, 'the default is a declared fact of the definition')
+  eq(reg.schemes.get('lib/double-progression@2')!.defaults!['lo'], { k: 'lit', lit: { k: 'q', v: 8, unit: 'rep' } }, 'the default is a declared fact of the definition')
 })
 
 t('', 'C10 checker: a binding may omit only DEFAULTED params; a default must name a param and match its sort; a hole is only optional for a defaulted param', () => {
-  eq(codes(CD.checkScheme(reg.schemes.get('lib/double-progression@1')!, reg)), [], 'the promoted scheme checks clean with holes only for non-defaulted params')
-  const s = reg.schemes.get('lib/double-progression@1')!
+  eq(codes(CD.checkScheme(reg.schemes.get('lib/double-progression@2')!, reg)), [], 'the promoted scheme checks clean with holes only for non-defaulted params')
+  const s = reg.schemes.get('lib/double-progression@2')!
   assert(!progErrors(cfgRange.def).length, 'binding the defaulted params is fine')
   const noLift = { ...cfgRange.def, slots: { bench: { ...cfgRange.def.slots['bench']!, args: Object.fromEntries(Object.entries(cfgRange.def.slots['bench']!.args).filter(([k]) => k !== 'lift')) } } }
   assert(progErrors(noLift).includes('missingArg@slots.bench.args'), 'a non-defaulted param still must be bound')
@@ -396,7 +391,7 @@ t('', 'C10 checker: a binding may omit only DEFAULTED params; a default must nam
 t('', 'C10 prose: a non-default argument for a hole-less defaulted param is appended, so the template never lies by silence; defaults render nothing', () => {
   const lines = DD.describeProgram(cfgRange.def, DS.cxOf(reg))
   const slotLine = lines.find((l) => l.trimStart().startsWith('bench:'))!
-  assert(slotLine.includes('(with lo = 5 reps, hi = 8 reps)'), `the override is stated: ${slotLine}`)
+  assert(slotLine.includes('(with rep-range floor = 5 reps, rep-range top = 8 reps)'), `the override is stated by LABEL (Y11): ${slotLine}`)
   const base = DD.describeProgram(P.optLoaded.def, DS.cxOf(reg))
   assert(!base.join('\n').includes('(with '), 'an omitted default appends nothing')
 })

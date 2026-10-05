@@ -83,8 +83,13 @@ function scaleSets(s: SessionValue, f: number, allowZero: boolean): SessionValue
         return { ...st, count: { k: 'n', n }, sets: st.sets.slice(0, n) }
       }
       if (c.k === 'range') {
-        const min = scaleCount(c.min, f, allowZero)
-        const max = Math.max(min, scaleCount(c.max, f, allowZero))
+        // Under allowZero the drop-to-zero decision is per LINE, taken on the
+        // scaled min (Y12): the whole line is gone, or it is a real range
+        // whose edges keep the one-set floor. A max ≥ 1 over a min of 0
+        // cannot exist, so a surviving range is judged exactly as before.
+        const zeroed = allowZero && scaleCount(c.min, f, true) === 0
+        const min = zeroed ? 0 : scaleCount(c.min, f, false)
+        const max = zeroed ? 0 : Math.max(min, scaleCount(c.max, f, false))
         return { ...st, count: { k: 'range', min, max }, sets: st.sets.slice(0, max) }
       }
       const max = scaleCount(c.max, f, allowZero)
