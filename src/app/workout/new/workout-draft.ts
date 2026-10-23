@@ -886,6 +886,27 @@ export function completeFilledSets(draft: WorkoutDraft): {
 }
 
 /**
+ * Whether the draft contains any PERFORMED work: a completed set on an exercise
+ * the lifter did not skip.
+ *
+ * The finish path's abandonment test. A program day is a real workout row from
+ * the moment it is instantiated — every set pre-seeded with its prescribed load
+ * and no reps — so a Finish on a session nobody logged into would persist that
+ * prefill as a complete workout: plan loads reading as performance, scoring
+ * nothing and counting toward history all the same.
+ *
+ * It deliberately reads the POST-PASS draft rather than `completeFilledSets`'s
+ * `autoCompleted`. That counter reports only the sets the pass FLIPPED, so a
+ * session whose every set was checked off by hand returns zero and would read
+ * as abandoned. The question is what the draft now says, not what the pass did.
+ */
+export function hasLoggedWork(draft: WorkoutDraft): boolean {
+  return draft.exercises.some(
+    (exercise) => !exercise.skipped && exercise.sets.some((set) => set.completed),
+  )
+}
+
+/**
  * The number a set row DISPLAYS (1-based): its ordinal within its own class —
  * warm-ups count among warm-ups, every other set among non-warm-ups
  * (classOrdinal, the same core plan/history pairing uses). Tagging a warm-up

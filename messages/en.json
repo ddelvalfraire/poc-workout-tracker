@@ -2859,6 +2859,13 @@
     "editNoteAriaLabel": "Edit note for {name}",
     "effortSlot": "Effort",
     "empty": "Empty bar.",
+    "emptyFinishDialog": {
+      "title": "Nothing logged yet",
+      "body": "No sets are checked off, so there is nothing to finish. Any weights already filled in are targets, not what you lifted — saving now would record them as if they were. Go back and log your sets, or discard the session.",
+      "confirm": "Discard",
+      "pending": "Discarding…",
+      "cancel": "Log my sets"
+    },
     "emptyHint": "Tap + Exercise below to add your first movement.",
     "expandAriaLabel": "Expand {name} — completed, {summary}{pr, select, yes {, new PR} other {}}{superset, select, none {} other {, superset {superset}}}",
     "fillAriaLabel": "Fill {set} from previous: {previous}",
