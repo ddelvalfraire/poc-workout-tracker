@@ -5,6 +5,7 @@ import { fillDailySeries } from '@/lib/ops/series'
 import { OpsPanel, statusOf } from './panel'
 import { CoachChart, type CoachChartPoint } from './coach-chart'
 import { useTranslations } from 'next-intl'
+import { DEFAULT_LANGFUSE_BASE_URL } from '@/config/constants'
 
 /**
  * Coach panel: "what is the coach doing and costing?" — 14-day traces/cost
@@ -16,8 +17,10 @@ import { useTranslations } from 'next-intl'
 const CHART_WINDOW_DAYS = 14
 
 /** Vendor deep link and the locale the ops board formats numbers in — both
- *  identifiers, not copy. */
-const LANGFUSE_DASHBOARD_URL = 'https://cloud.langfuse.com/'
+ *  identifiers, not copy. Always the Cloud dashboard, even when
+ *  LANGFUSE_BASEURL points at a self-host, since there is no separate
+ *  dashboard-URL env var to follow. */
+const LANGFUSE_DASHBOARD_URL = `${DEFAULT_LANGFUSE_BASE_URL}/`
 const NUMBER_LOCALE = 'en-US'
 
 interface CoachPanelProps {

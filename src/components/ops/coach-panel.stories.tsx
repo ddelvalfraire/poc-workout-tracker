@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import { expect, within } from "storybook/test";
 
 import type {
   LangfuseSnapshot,
@@ -68,7 +69,13 @@ const TRACES: OpsResult<LangfuseTracesSnapshot> = {
   },
 };
 
-export const Default: Story = { args: { daily: DAILY, traces: TRACES } }
+export const Default: Story = {
+  args: { daily: DAILY, traces: TRACES },
+  play: async ({ canvasElement }) => {
+    const dashboard = within(canvasElement).getByRole('link', { name: 'Langfuse' })
+    await expect(dashboard).toHaveAttribute('href', 'https://cloud.langfuse.com/')
+  },
+}
 
 /** No coach usage yet — zeros, not an error. */
 export const NoUsage: Story = {

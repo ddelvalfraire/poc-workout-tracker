@@ -1,6 +1,7 @@
 import { and, eq, gte, isNotNull } from 'drizzle-orm'
 import { resolveDeloadPolicy } from '@/lib/programs/progression'
 import { getRedis } from '@/lib/redis'
+import { PROPOSAL_MARKER_TTL_SECONDS } from '@/config/constants'
 import {
   REACTIVE_DELOAD_SOURCE,
   REACTIVE_DEFAULT_SHAPE,
@@ -43,7 +44,6 @@ import { programs, programDays, workouts } from './schema'
  *  a declined proposal isn't re-raised within its week). Correctness never
  *  depends on it: the partial unique index is the guarantee. */
 const markerKey = (programId: string, week: number) => `reactive-deload:${programId}:w${week}`
-const MARKER_TTL_SECONDS = 60 * 60 * 24 * 90
 
 export async function ensureReactiveDeloadProposals(
   userId: string,
@@ -203,7 +203,7 @@ export async function ensureReactiveDeloadProposals(
     }
 
     if (redis) {
-      await redis.set(markerKey(programId, currentWeek), '1', { ex: MARKER_TTL_SECONDS })
+      await redis.set(markerKey(programId, currentWeek), '1', { ex: PROPOSAL_MARKER_TTL_SECONDS })
     }
   } catch (error: unknown) {
     // Enhancement on a read path: never break the page; next load retries.

@@ -1,4 +1,4 @@
-import { requireEnv } from './env'
+import { requireEnv } from '@/config/env'
 
 /**
  * Server-only Supabase Storage client for the private `progress-photos`

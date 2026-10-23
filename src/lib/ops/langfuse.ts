@@ -27,8 +27,8 @@
 import { fetchJson } from './fetch'
 import { cachedOpsFetch } from './cache'
 import type { OpsResult } from './types'
+import { langfuseApiBaseUrl } from '@/config/env'
 
-const DEFAULT_BASE_URL = 'https://cloud.langfuse.com'
 const DAYS = 14
 const PILL_WINDOW_DAYS = 7
 const TRACES_LIMIT = 15
@@ -85,7 +85,7 @@ function resolveAuth(): LangfuseAuth | null {
   const secretKey = process.env.LANGFUSE_SECRET_KEY
   if (!publicKey || !secretKey) return null
   return {
-    baseUrl: (process.env.LANGFUSE_BASEURL || DEFAULT_BASE_URL).replace(/\/$/, ''),
+    baseUrl: langfuseApiBaseUrl(),
     header: `Basic ${Buffer.from(`${publicKey}:${secretKey}`).toString('base64')}`,
   }
 }

@@ -1,6 +1,6 @@
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
-import { requireEnv } from '@/lib/env'
+import { requireEnv } from '@/config/env'
 import * as schema from './schema'
 
 // prepare:false is REQUIRED on the Supabase transaction pooler (port 6543).
