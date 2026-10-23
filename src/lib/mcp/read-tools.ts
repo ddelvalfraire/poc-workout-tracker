@@ -391,7 +391,7 @@ export function registerReadTools(server: McpServer): void {
         programId: z.string(),
         limit: z.number().int().min(1).max(PROGRAM_EVENTS_MAX_LIMIT).optional(),
         before: z.string().datetime().optional(),
-        beforeId: z.string().uuid().optional(),
+        beforeId: z.uuid().optional(),
         userId: z.string().optional(),
       },
     },

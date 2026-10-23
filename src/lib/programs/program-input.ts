@@ -446,7 +446,7 @@ export const programDaySchema = z.object({
   // day (nothing to preserve) — never an error, since adapters that cannot
   // round-trip it must still be able to save. Unknown keys are treated the
   // same way: a key from another program can only fail to match.
-  slotKey: z.string().uuid().optional(),
+  slotKey: z.uuid().optional(),
   name: z.string().trim().min(1).max(MAX_NAME),
   notes: z.string().max(2000).nullable().optional(),
   // Weekday schedule (0–6, Sunday-first), normalized to a deduped ascending
@@ -620,11 +620,17 @@ export type ProgramMetaPatch = z.infer<typeof programMetaPatchSchema>
  *  client mappers emit; `parseProgramInput` normalizes it server-side. */
 export type ProgramInputUnparsed = z.input<typeof programInputSchema>
 
+// Compile only when this server-side parsing boundary is used. This module's
+// constants and enums also reach client bundles; eager/global compilation would
+// add work there and affect schemas outside this boundary.
+let compiledProgramInputSchema: typeof programInputSchema | undefined
+
 /**
  * Validates untrusted input into a normalized `ProgramInput`, throwing a
  * `ZodError` on any malformed field. Returns a fresh object — the caller's input
  * is never mutated.
  */
 export function parseProgramInput(input: unknown): ProgramInput {
-  return programInputSchema.parse(input)
+  compiledProgramInputSchema ??= z.compile(programInputSchema)
+  return compiledProgramInputSchema.parse(input)
 }
