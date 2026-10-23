@@ -1,3 +1,16 @@
+# Repository workflow
+
+- Use a feature branch and open a PR; changes reach main through review. Preserve unrelated edits and avoid rewriting published branch history.
+- Install dependencies with `npm ci` using `package-lock.json`. Follow the existing `src/app`, `src/components`, `src/db`, and `src/lib` layout and kebab-case filenames.
+- Keep changes scoped to the task. Explain non-obvious constraints in comments and document exported behavior where it helps the caller.
+
+# Verification
+
+- Run relevant unit tests with `npx vitest run --project=unit`; use `npm run test:storybook -- <story path>` for component browser checks.
+- For application changes, run `npm run lint`, `npx tsc --noEmit`, and `npm run build`. A build needs `DATABASE_URL`; use a disposable local database for validation.
+- Report the commands and observed results, including failures or unrun checks. Never infer a passing result from an old report.
+- The Playwright suite provisions users and writes workouts. Use local Postgres and the WorkOS emulator configured in `playwright.config.ts`; install Chromium and its runtime dependencies, including fonts. Keep credentials in ignored local environment files.
+
 # Design
 
 - All list/detail surface work must follow the review contract in [DESIGN.md](DESIGN.md) — especially the "De-card vocabulary" section (hairlines not shells, one volt, keep-list, lint ratchet).
