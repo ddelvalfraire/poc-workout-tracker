@@ -18,8 +18,9 @@
  * Server-only: never import from a Client Component.
  */
 import type { WgerRoutineStructure } from './wger-template-map'
+import { wgerApiBaseUrl } from '@/config/env'
 
-const WGER_BASE_URL = process.env.WGER_API_BASE_URL ?? 'https://wger.de/api/v2'
+const WGER_BASE_URL = wgerApiBaseUrl()
 const UPSTREAM_REVALIDATE_S = 86_400 // templates change rarely; 1-day TTL
 /** Browse-surface cap: wger's public catalog is small; 50 is generous. */
 const MAX_TEMPLATES = 50

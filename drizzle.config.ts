@@ -1,6 +1,6 @@
 import { config } from 'dotenv'
 import { defineConfig } from 'drizzle-kit'
-import { requireEnv } from './src/lib/env' // relative: drizzle-kit does not resolve the @/ alias
+import { requireEnv } from './src/config/env' // relative: drizzle-kit does not resolve the @/ alias
 
 config({ path: '.env.local' }) // drizzle-kit does NOT read .env.local by default
 

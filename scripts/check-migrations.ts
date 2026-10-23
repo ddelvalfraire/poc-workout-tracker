@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs'
 import { config } from 'dotenv'
 import postgres from 'postgres'
 import { diffMigrations, type JournalEntry } from '../src/lib/migration-guard'
-import { requireEnv } from '../src/lib/env'
+import { requireEnv } from '../src/config/env'
 
 config({ path: '.env.local' })
 

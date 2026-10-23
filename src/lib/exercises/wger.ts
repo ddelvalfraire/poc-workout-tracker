@@ -19,8 +19,9 @@
  */
 
 import { getRedis } from '../redis'
+import { wgerApiBaseUrl } from '@/config/env'
 
-const WGER_BASE_URL = process.env.WGER_API_BASE_URL ?? 'https://wger.de/api/v2'
+const WGER_BASE_URL = wgerApiBaseUrl()
 const WGER_ENGLISH_LANGUAGE_ID = 2
 const WGER_PAGE_SIZE = 999 // wger's max page size (catalog ~1275 → 2 pages)
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000 // how long a snapshot counts as FRESH

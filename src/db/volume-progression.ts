@@ -3,6 +3,7 @@ import type { ExerciseSource } from '@/lib/exercises/custom-exercise-input'
 import { MUSCLE_GROUPS, muscleGroupFor, type MuscleGroup } from '@/lib/exercises/muscle-groups'
 import type { AutoregSession, AutoregStallPolicy } from '@/lib/programs/autoregulate'
 import { getRedis } from '@/lib/redis'
+import { PROPOSAL_MARKER_TTL_SECONDS } from '@/config/constants'
 import {
   combineWeekResults,
   movementWeekResult,
@@ -591,7 +592,6 @@ export async function getVolumeStatus(
  *  CORRECTNESS does not depend on it: the pending-source partial unique
  *  index is what guarantees no duplicate pending proposal, Redis or not. */
 const markerKey = (programId: string, week: number) => `volume-proposals:${programId}:w${week}`
-const MARKER_TTL_SECONDS = 60 * 60 * 24 * 90
 
 /**
  * Turns the eligible verdicts into batch-patch proposals (authorActor 'mcp'):
@@ -626,7 +626,7 @@ async function raiseProposals(
     )
   }
   if (redis) {
-    await redis.set(markerKey(programId, week), '1', { ex: MARKER_TTL_SECONDS })
+    await redis.set(markerKey(programId, week), '1', { ex: PROPOSAL_MARKER_TTL_SECONDS })
   }
 }
 
