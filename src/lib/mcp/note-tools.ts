@@ -117,7 +117,7 @@ export function registerNoteTools(server: McpServer): void {
       description:
         "Rewrites the body of one of the user's OWN notes (plain text, max 2000 chars). Coach-authored comments cannot be rewritten — only deleted — so those report not-found here.",
       inputSchema: {
-        noteId: z.string().uuid(),
+        noteId: z.uuid(),
         body: z.string(),
         userId: z.string().optional(),
       },
@@ -147,7 +147,7 @@ export function registerNoteTools(server: McpServer): void {
       title: 'Delete Note',
       description:
         "Deletes one note the user owns (any author — it's their data). Irreversible.",
-      inputSchema: { noteId: z.string().uuid(), userId: z.string().optional() },
+      inputSchema: { noteId: z.uuid(), userId: z.string().optional() },
     },
     async ({ noteId, userId }, extra) => {
       try {

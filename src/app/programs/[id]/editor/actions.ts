@@ -42,7 +42,7 @@ function blankable<T extends z.ZodType<number>>(schema: T) {
 const countField = blankable(z.coerce.number().int().min(0).max(999))
 
 const overrideSchema = z.object({
-  programId: z.string().uuid(),
+  programId: z.uuid(),
   // 0-based positions + 1-based setNumber: the addressing `setProgramSetOverride`
   // and `editor-address.ts` already agree on.
   day: z.coerce.number().int().min(0),
@@ -122,7 +122,7 @@ export async function saveSetOverrideAction(formData: FormData): Promise<void> {
  * were copied at start time and no edit path updates them.
  */
 const reachSchema = z.object({
-  programId: z.string().uuid(),
+  programId: z.uuid(),
   day: z.coerce.number().int().min(0),
   exercise: z.coerce.number().int().min(0),
   setNumber: z.coerce.number().int().min(1),
@@ -181,7 +181,7 @@ export async function applyReachToPlanAction(formData: FormData): Promise<void> 
  * refuse, and `updateProgramSet` parses it a second time at the db boundary.
  */
 const techniqueSchema_ = z.object({
-  programId: z.string().uuid(),
+  programId: z.uuid(),
   day: z.coerce.number().int().min(0),
   exercise: z.coerce.number().int().min(0),
   setNumber: z.coerce.number().int().min(1),
